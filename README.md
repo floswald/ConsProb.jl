@@ -14,5 +14,5 @@ this will produce a plot showing the resulting optimal consumption functions for
 
 ```julia
 using ConsProb
-run()
+ConsProb.run()
 ```
