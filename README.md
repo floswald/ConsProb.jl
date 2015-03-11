@@ -13,6 +13,6 @@ this repo has julia code that computes the solution to a standard savings proble
 this will produce a plot showing the resulting optimal consumption functions for each method.
 
 ```julia
-using myEGM
+using ConsProb
 run()
 ```
