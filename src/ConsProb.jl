@@ -9,9 +9,6 @@ using FastGaussQuadrature: gausshermite
 include("setup.jl")
 include("funs.jl")
 
-export Param
-
-
-
+export Param, Model, Model2
 
 end
