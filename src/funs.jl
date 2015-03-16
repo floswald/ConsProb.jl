@@ -9,43 +9,39 @@ function run()
 	p = Param()
 
 	# solve by standard euler equation root finding
-	EEmod = Model(p)
+	EEmod = iidModel(p)
 	EEmod.toc = @elapsed Euler(EEmod,p)
 
 
 
 	# solve maximizing the value function backward iteration
-	VFmod = Model(p)
+	VFmod = iidModel(p)
 	VFmod.toc = @elapsed VFbi(VFmod,p)
 
 	# solve by EGM
-	EGMmod = Model(p)
+	EGMmod = iidModel(p)
 	EGMmod.toc = @elapsed EGM(EGMmod,p)
-	
 
 	# plot results
 	plots(EEmod,EGMmod,VFmod,p)
 
 	# AR1 income model
+	# ================
 
+	EGMmod = AR1Model(p)
+	EGMmod.toc = @elapsed EGM(EGMmod,p)
 
-	# solve by standard euler equation root finding
-	# EEmod = Model(p)
-	# EEmod.toc = @elapsed Euler(EEmod,p)
-
-
-
-	# solve maximizing the value function backward iteration
-	VFmod = Model2(p)
+	VFmod = AR1Model(p)
 	VFmod.toc = @elapsed VFbi(VFmod,p)
 
-	# solve by EGM
-	EGMmod = Model2(p)
-	EGMmod.toc = @elapsed EGM(EGMmod,p)
-	
+	# does it matter whether I compute the model on 
+	# current assets, given y, or
+	# cash-on-hand, given y?
+	VFmod_a = AR1Model_a(p)
+	VFmod_a.toc = @elapsed VFbi(VFmod_a,p)
 
 	# plot results
-	plots(EGMmod,VFmod,p,3)
+	plots(EGMmod,VFmod,VFmod_a,p,1)  # plot period 1
 end
 
 
@@ -103,7 +99,7 @@ end
 
 
 # endogenous grid method
-function EGM(m::Model,p::Param)
+function EGM(m::iidModel,p::Param)
 
 	# final period: consume everything.
 	m.M[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
@@ -140,7 +136,7 @@ end
 
 
 # endogenous grid method for AR1 model
-function EGM(m::Model2,p::Param)
+function EGM(m::AR1Model,p::Param)
 
 	# final period: consume everything.
 	m.M[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
@@ -161,12 +157,13 @@ function EGM(m::Model2,p::Param)
 				tmpy = [0.0, m.C[:,iiy,it+1] ]
 				for ia in 1:p.na
 					m.c1[ia+p.na*(iiy-1)] = linearapprox(tmpx,tmpy,m.m1[ia+p.na*(iiy-1)],1,p.na)
+					# m.c1[ia,iiy] = linearapprox(tmpx,tmpy,m.m1[ia,iiy],1,p.na)
 				end
 			end
 
 			# get expected marginal value of saving: RHS of euler equation
 			# beta * R * E[ u'(c_{t+1}) ] 
-			Eu = p.R * p.beta .* up(m.c1,p) * m.ywgt[iy,:]'
+			Eu = p.R * p.beta .* m.ywgt[iy,:] * transpose(up(m.c1,p))
 
 			# get optimal consumption today from euler equation: invert marginal utility
 			m.C[:,iy,it] = iup(Eu,p)
@@ -181,7 +178,7 @@ end
 
 
 # solving the euler equation
-function Euler(m::Model,p::Param)
+function Euler(m::iidModel,p::Param)
 
 	# final period: consume everything.
 	m.M[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
@@ -197,6 +194,22 @@ function Euler(m::Model,p::Param)
 			# consumption equal to cash on hand
 			res = EulerResid(cash,cash,m.C[:,it+1],p,m)
 
+			# this is an implication of 
+			# equation (6) in Deaton ECTA (1991):
+			# u'(c_t) = max[ u'(m_t), beta * R * u'(c_{t+1}) ]
+			# with constraint a_t >= 0, if
+			# c_t = m_t => a_{t+1} = 0   (consume everything, possible constrained: wanted to consume more by borrowing, but could not.)
+			# c_t < m_t => a_{t+1} > 0   (consume less than m and save some for tomorrow)
+			# c_t > m_t => a_{t+1} < 0   (consume more than m by borrowing)
+			# the residual function EulerResid returns
+			# c - u'^(-1) [ beta * E[ u'(beta * R * E[ u'(c_{t+1}) ] )] ]
+			# where c_{t+1} is implied by today's choice c.
+			# if that difference is negative when c_t = m_t, this means that 
+			# c_t < c_{t+1} or
+			# u'(c_t) > u'(c_{t+1}), or
+			# u'(m_t) > u'(c_{t+1}), and therefore
+			# u'(c_t) = max[ u'(m_t), beta * R * u'(c_{t+1}) ] implies
+			# that this consumer is borrowing constrained and consumes all cash in hand.
 			if res < 0
 				m.C[ia,it] = cash
 			else
@@ -211,7 +224,7 @@ function Euler(m::Model,p::Param)
 end
 
 # Euler Equation Residual
-function EulerResid(c::Float64,cash::Float64,cplus::Vector{Float64},p::Param,m::Model)
+function EulerResid(c::Float64,cash::Float64,cplus::Vector{Float64},p::Param,m::iidModel)
 
 	# given current c, what is next period's cash on hand
 	m.m2 = p.R * (cash - c) .+ m.yvec  # (ny,1)
@@ -232,7 +245,7 @@ end
 
 
 # finding the maximum of the value function backward iteration
-function VFbi(m::Model,p::Param)
+function VFbi(m::iidModel,p::Param)
 
 	# final period: consume everything.
 	m.C[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
@@ -253,10 +266,7 @@ function VFbi(m::Model,p::Param)
 		end
 	end
 end
-
-
-
-function VFobj(c::Float64,cash::Float64,Vplus::Array{Float64},m::Model,p::Param,integw::Vector{Float64})
+function VFobj(c::Float64,cash::Float64,Vplus::Array{Float64},m::iidModel,p::Param,integw::Vector{Float64})
 
 	# implied cash on hand tomorrow
 	s = (cash - c) * p.R .+ m.yvec
@@ -267,49 +277,12 @@ function VFobj(c::Float64,cash::Float64,Vplus::Array{Float64},m::Model,p::Param,
 	return -v
 end
 
+
+
 # finding the maximum of the value function backward iteration
 # AR1 model
-# function VFbi(m::Model2,p::Param)
 
-# 	# final period: consume everything.
-# 	m.C[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
-# 	m.V[:,:,p.nT] = u(m.C[:,:,p.nT],p)
-
-# 	# preceding periods
-# 	for it in (p.nT-1):-1:1
-
-# 		# compute conditional expected value function
-# 		# m.EV[:,:,it] = transpose(m.ywgt * transpose(m.V[:,:,it+1]))
-
-# 		# conditional on current income state
-# 		for iy in 1:p.ny
-
-# 			for ia in 1:p.na
-
-# 				cash = m.avec[ia] 	# current cash on hand
-
-# 				# Brent's method for minimizing a function
-# 				# withotu derivatives
-# 				x = optimize((x)->VFobj(x,cash,m.V[:,:,it+1],m,p,m.ywgt[iy,:][:]),1e-6,cash)
-# 				m.V[ia,iy,it] = -x.f_minimum
-# 				m.C[ia,iy,it] = x.minimum
-# 			end
-# 		end
-# 	end
-# end
-# function VFobj(c::Float64,cash::Float64,Vplus::Array{Float64},m::Model2,p::Param,integw::Vector{Float64})
-
-# 	# implied savings tomorrow
-# 	s = (cash - c) * p.R + m.yvec
-# 	for iy in 1:p.ny
-# 		m.m2[iy] = linearapprox(m.avec,Vplus[:,iy],s[iy],1,p.na)
-# 	end
-# 	# Ev = linearapprox(m.avec,Vplus[:,iy],s,1,p.na)
-# 	v = u(c,p) + p.beta * dot(m.m2,integw)
-# 	return -v
-# end
-
-function VFbi(m::Model2,p::Param)
+function VFbi(m::AR1Model,p::Param)
 
 	# final period: consume everything.
 	m.C[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
@@ -326,10 +299,10 @@ function VFbi(m::Model2,p::Param)
 
 			for ia in 1:p.na
 
-				cash = m.avec[ia]  # current cash on hand
+				cash = m.avec[ia]  # take asset grid as current cash on hand (add random income to next period savings)
 
 				# Brent's method for minimizing a function
-				# withotu derivatives
+				# without derivatives
 				x = optimize((x)->VFobj(x,cash,m.V[:,:,it+1],m,p,m.ywgt[iy,:][:]),1e-7,cash)
 				m.V[ia,iy,it] = -x.f_minimum
 				m.C[ia,iy,it] = x.minimum
@@ -337,19 +310,58 @@ function VFbi(m::Model2,p::Param)
 		end
 	end
 end
-function VFobj(c::Float64,cash::Float64,Vplus::Array{Float64},m::Model2,p::Param,integw::Vector{Float64})
+function VFobj(c::Float64,cash::Float64,Vplus::Matrix{Float64},m::AR1Model,p::Param,integw::Vector{Float64})
 
-	# implied savings tomorrow
+	# implied cash on hand tomorrow
 	s = (cash - c) * p.R + m.yvec
 	# integrate out tomorrow's income uncertainty
 	for iy in 1:p.ny
 		m.m2[iy] = linearapprox(m.avec,Vplus[:,iy],s[iy],1,p.na)
 	end
-	# Ev = linearapprox(m.avec,Vplus[:,iy],s,1,p.na)
 	v = u(c,p) + p.beta * dot(m.m2,integw)
 	return -v
 end
 
+
+
+
+function VFbi(m::AR1Model_a,p::Param)
+
+	# final period: consume everything.
+	m.C[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
+	m.V[:,:,p.nT] = u(m.C[:,:,p.nT],p)
+
+	# preceding periods
+	for it in (p.nT-1):-1:1
+
+		# conditional on current income state
+		for iy in 1:p.ny
+
+			# compute conditional expected value function
+			m.EV =  m.V[:,:,it+1] * m.ywgt[iy,:][:]  # (1,ny) * (ny,na) = (1,na)
+
+			for ia in 1:p.na
+
+				cash = m.avec[ia] + m.yvec[iy] # current cash on hand
+
+				# Brent's method for minimizing a function
+				# withotu derivatives
+				x = optimize((x)->VFobj(x,cash,m,p),1e-7,cash)
+				m.V[ia,iy,it] = -x.f_minimum
+				m.C[ia,iy,it] = x.minimum
+			end
+		end
+	end
+end
+function VFobj(c::Float64,cash::Float64,m::AR1Model_a,p::Param)
+
+	# implied savings tomorrow
+	s = (cash - c) * p.R 
+	# get the expected value function at savings s
+	EV = linearapprox(m.avec,m.EV,s,1,p.na)
+	v = u(c,p) + p.beta * EV
+	return -v
+end
 
 function linearapprox(x::Vector{Float64},y::Vector{Float64},xi::Float64,lo::Int,hi::Int)
 	r = 0.0
@@ -389,7 +401,7 @@ end
 
 
 # plotting
-function plots(EE::Model,EGM::Model,VF::Model,p::Param)
+function plots(EE::iidModel,EGM::iidModel,VF::iidModel,p::Param)
 
 	figure()
 
@@ -427,23 +439,43 @@ function plots(EE::Model,EGM::Model,VF::Model,p::Param)
 end
 
 
-function plots(EGM::Model2,VF::Model2,p::Param,iy::Int)
+function plots(EGM::AR1Model,VF::AR1Model,VF_2::AR1Model_a,p::Param,it::Int)
 
 	figure()
 
 	# plot consumption funcitons
 	# ==========================
 
-	# solve by maximizing the VF
-	subplot(1,2,1)
-	# plot(VF.avec.+VF.yvec[iy],squeeze(VF.C[:,iy,1:(p.nT-1)],2))
-	plot(VF.avec,squeeze(VF.C[:,iy,1:(p.nT-1)],2))
+
+	# solve by EGM
+	subplot(1,3,1)
+	plot(squeeze(EGM.M[:,:,it],3),squeeze(EGM.C[:,:,it],3))
+	xlabel("cash on hand")
+	ylim([p.a_low,p.a_high])
+	xlim([p.a_low,p.a_high])
+	plot(ylim(),ylim())
+	title("Endogenous Grid\n Method: $(round(EGM.toc,5)) secs")
+
+	subplot(1,3,2)
+	# plot(VF.avec.+VF.yvec[iy],squeeze(VF.C[:,:,1],3))
+	plot(VF.avec,squeeze(VF.C[:,:,it],3))
+	# plot(VF.avec,squeeze(VF.C[:,iy,1:(p.nT-1)],2))
 	xlabel("cash on hand")
 	ylabel("consumption")
 	ylim([p.a_low,p.a_high])
 	xlim([p.a_low,p.a_high])
 	plot(ylim(),ylim())
-	title("maximize the value function: $(round(VF.toc,5)) secs")
+	title("max V computing expected\n cash-on-hand: $(round(VF.toc,5)) secs")
+
+	subplot(1,3,3)
+	plot([VF_2.avec[i] + VF_2.yvec[j] for i=1:p.na, j=1:p.ny],squeeze(VF_2.C[:,:,it],3))
+	# plot(VF.avec,squeeze(VF.C[:,iy,1:(p.nT-1)],2))
+	xlabel("cash on hand")
+	ylabel("consumption")
+	ylim([p.a_low,p.a_high])
+	xlim([p.a_low,p.a_high])
+	plot(ylim(),ylim())
+	title("max V computing current\n cash-on-hand: $(round(VF_2.toc,5)) secs")
 
 	# subplot(1,3,2)
 	# plot(EE.avec,EE.C[:,iy:(p.nT-1)])
@@ -453,15 +485,7 @@ function plots(EGM::Model2,VF::Model2,p::Param,iy::Int)
 	# plot(ylim(),ylim())
 	# title("Solving the Euler Equation: $(round(EE.toc,5)) secs")
 
-	# solve by EGM
-	subplot(1,2,2)
-	plot(squeeze(EGM.M[:,iy,1:(p.nT-1)],2),squeeze(EGM.C[:,iy,1:(p.nT-1)],2))
-	xlabel("cash on hand")
-	ylim([p.a_low,p.a_high])
-	xlim([p.a_low,p.a_high])
-	plot(ylim(),ylim())
-	title("Endogenous Grid Method: $(round(EGM.toc,5)) secs")
 
-	suptitle("model with AR1 income uncertainty")
+	suptitle("model with AR1 income, all y-states, period $it")
 
 end

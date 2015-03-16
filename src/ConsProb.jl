@@ -2,13 +2,27 @@
 
 module ConsProb
 
-# using ApproXD
+
 using PyPlot, Roots, Optim
 using FastGaussQuadrature: gausshermite
 
-include("setup.jl")
-include("funs.jl")
+# setting up docile documentation
+if VERSION < v"0.4.0-dev"
+    using Docile
+end
 
-export Param, Model, Model2
+
+@document
+
+"
+Consumption Problems
+
+This module has some different ways to solve a standard life-cycle consumption problem.
+"
+
+include("setup.jl")
+# include("funs.jl")
+
+# export Param, Model
 
 end

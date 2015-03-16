@@ -1,7 +1,25 @@
 
 
-# param type 
 
+"
+Holds the user-set parameter values. 
+
+**values to be set:**
+
+* `gamma`: CRRA 
+* `beta`: discount factor
+* `R`: gross interest rate (i.e. 1+r )
+* `na`: number of grid points for assets
+* `ny`: number of grid points for income
+* `nT`: number of time periods
+* `a_low`: lower bound on assets
+* `a_high`: upper bound on assets
+* `mu`: unconditional mean of income (iid case)
+* `sigma`: unconditional variance of income (iid case)
+* `rho_z`: AR1 coefficient of income (AR1 case)
+* `eps_z`: standard deviation of AR1 innovation (AR1 case)
+
+"
 type Param
 
 	# CRRA
@@ -30,11 +48,10 @@ type Param
 	# ln z_t = rho_z * ln z_{t-1} + eps_z_{t}
 	rho_z::Float64
 	eps_z::Float64
-	AgeProf::Vector{Float64}
 
 	function Param()
 
-		gamma                 = 2.0
+		gamma                 = 3.0
 		neg_gamma             = (-1.0) * gamma
 		oneminusgamma         = 1.0 - gamma
 		oneover_oneminusgamma = 1.0 / oneminusgamma
@@ -56,14 +73,37 @@ type Param
 		# AR1 income uncertainty
 		# params from Ayiagari
 		rho_z = 0.9
-		eps_z = 0.12
+		eps_z = 1
 
 		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,mu,sigma,rho_z,eps_z)
 	end
 end
 
-# consumption model with iid income uncertainty
-type Model
+# Abstract Model type
+# this is an overall model type, with potential subtypes
+
+"
+Abstract Model type
+
+**There are three model types:**
+
+1. model with iid income uncertainty, use cash-on-hand m=y+a as state variable: V(a)
+2. model with AR1 income uncertainty, use cash-on-hand m=y+a and y as state variables: V(m,y)
+3. model with AR1 income uncertainty, use current assets a and y as state variables: V(a,y)
+"
+abstract Model
+
+
+# there are 3 different models:
+
+
+
+"
+Model with iid income uncertainty V(a)
+
+uses cash-on-hand m=y+a as state variable: V(a)
+"
+type iidModel <: Model
 
 	# computation grids
 	avec::Vector{Float64}
@@ -85,7 +125,8 @@ type Model
 
 	toc::Float64   # elapsed time
 
-	function Model(p::Param)
+	@doc "Constructor for iid Model" ->
+	function iidModel(p::Param)
 
 		avec          = linspace(p.a_low,p.a_high,p.na)
 		nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
@@ -115,11 +156,16 @@ type Model
 end
 
 
-# consumption model with AR1 income uncertainty
-type Model2
+"
+Model with AR1 income uncertainty V(m,y)
+
+uses cash-on-hand m=y+a and current income state y as state variables. Tracking y is necessary in order to compute the conditional expectation on y.
+"
+type AR1Model <: Model
 
 	# computation grids
 	avec::Vector{Float64}
+	zvec::Vector{Float64}   # shock support
 	yvec::Vector{Float64}   # income support
 	ywgt::Matrix{Float64}   # transition matrix for income
 
@@ -135,21 +181,21 @@ type Model2
 	S::Array{Float64,3} 	
 	M::Array{Float64,3} 	
 	V::Array{Float64,3} 	
-	EV::Array{Float64,3} 	
 
 	toc::Float64   # elapsed time
 
-	function Model2(p::Param)
+	@doc "Constructor for AR1 Model" ->
+	function AR1Model(p::Param)
 
-		avec          = linspace(p.a_low,p.a_high,p.na)
+		avec = linspace(p.a_low,p.a_high,p.na)
 
 		# get grid and transition matrix for z
 		z,ywgt = rouwenhorst(p.rho_z,0.0,p.eps_z,p.ny)
 
-		yvec = exp(z) + 20
+		yvec = z + p.mu
 
 		# precompute next period's cash on hand.
-		m1 = p.R * kron(avec,ones(1,p.ny)) .+ kron(ones(p.na,1),transpose(yvec))
+		m1 = p.R * Float64[avec[i] + yvec[j] for i=1:p.na, j=1:p.ny]
 		c1 = zeros(p.na,p.ny)
 
 		m2 = zeros(p.ny)
@@ -159,18 +205,61 @@ type Model2
 		S = zeros(p.na,p.ny,p.nT)
 		M = zeros(p.na,p.ny,p.nT)
 		V = zeros(p.na,p.ny,p.nT)
-		EV = zeros(p.na,p.ny,p.nT)
 
 		toc = 0.0
 
-
-		return new(avec,yvec,ywgt,m1,c1,m2,c2,C,S,M,V,EV,toc)
+		return new(avec,z,yvec,ywgt,m1,c1,m2,c2,C,S,M,V,toc)
 	end
 end
 
 
-# rouwenhorst AR1 approximation after 
-# http://karenkopecky.net/RouwenhorstPaperFinal.pdf
+# 3) model with AR1 income uncertainty, use current assets a and y as state variables: V(a,y)
+type AR1Model_a <: Model
+
+	# computation grids
+	avec::Vector{Float64}
+	zvec::Vector{Float64}   # shock support
+	yvec::Vector{Float64}   # income support
+	ywgt::Matrix{Float64}   # transition matrix for income
+
+	# result objects on (na,ny,nT)
+	C::Array{Float64,3} 	
+	S::Array{Float64,3} 	
+	M::Array{Float64,3} 	
+	V::Array{Float64,3} 	
+	EV::Array{Float64,1} 	
+
+	toc::Float64   # elapsed time
+
+	@doc "Constructor for AR1 Model" ->
+	function AR1Model_a(p::Param)
+
+		avec = linspace(p.a_low,p.a_high,p.na)
+
+		# get grid and transition matrix for z
+		z,ywgt = rouwenhorst(p.rho_z,0.0,p.eps_z,p.ny)
+
+		yvec = z + p.mu
+
+		C = zeros(p.na,p.ny,p.nT)
+		S = zeros(p.na,p.ny,p.nT)
+		M = zeros(p.na,p.ny,p.nT)
+		V = zeros(p.na,p.ny,p.nT)
+		EV = zeros(p.na)
+
+		toc = 0.0
+
+		return new(avec,z,yvec,ywgt,C,S,M,V,EV,toc)
+	end
+end
+
+"""
+rouwenhorst AR1 approximation 
+
+
+This is taken from [http://karenkopecky.net/RouwenhorstPaperFinal.pdf](Karen Kopecky's paper)
+
+"""
 function rouwenhorst(rho::Float64,mu_eps,sigma_eps,n)
 	q = (rho+1)/2
 	nu = ((n-1)/(1-rho^2))^(1/2) * sigma_eps
