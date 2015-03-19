@@ -98,12 +98,25 @@ end
 
 
 
+"lifecycle profile in income
+
+returns income as function of deterministic age profile + shock. Assume that it=1 is age 20. Taken from Ikshkakov at https://github.com/fediskhakov/egdst
+"
+function income(it::Int,shock::Float64)
+	age = it + 19
+	exp( 1.5 + age*0.04 - 0.0004*(age^2) + shock)
+end
+
+
 # endogenous grid method
 function EGM(m::iidModel,p::Param)
 
 	# final period: consume everything.
 	m.M[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
 	m.C[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
+	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
+
+	m.V[:,p.nT] = u(m.C[:,p.nT],p) + p.beta * 0.0
 
 	# preceding periods
 	for it in (p.nT-1):-1:1
@@ -126,10 +139,43 @@ function EGM(m::iidModel,p::Param)
 		# get optimal consumption today from euler equation: invert marginal utility
 		m.C[:,it] = iup(Eu,p)
 
+		# floor consumption
+		m.C[m.C[:,it].<p.cfloor,it] = p.cfloor
+
+
 		# get endogenous grid today
 		m.M[:,it] = m.C[:,it] .+ m.avec
 
+		# compute value function
+		# ======================
 
+		# expected value function (na,ny)
+		fill!(m.ev,NaN)
+		# dont: don't interpolate anything.
+		if it==(p.nT-1)
+			dont = trues(size(m.m1))
+		else
+			dont = m.m1 .< m.M[1,it+1]	# wherever potential next period's cash on hand (m.m1) is less than the lowest grid point of the endogenous grid next period (m.M), the agent will be credit constrained and will be saving zero (m.EV[1,it+1])
+		end
+
+		vv = m.V[:,it+1]
+		tmpx = m.M[:,it+1]  
+		for ia in 1:p.na
+			for iy in 1:p.ny
+				idx = ia+p.na*(iy-1)
+				if dont[idx]
+					m.ev[idx] = u(m.m1[idx],p) + p.beta * m.Vzero[it+1]
+				else
+					m.ev[idx] = linearapprox(tmpx,vv,m.m1[idx],1,p.na)
+				end
+			end
+		end
+		ev = m.ev * m.ywgt
+		# if abs(m.avec[1]) > 1e-6
+		# 	error("first element of avec is assumed to be zero: it's not!")
+		# end
+		m.Vzero[it] = ev[1] # save expected value of saving zero in first element.
+		m.V[:,it]  = u(m.C[:,it],p) + p.beta * ev 
 	end
 end
 
@@ -141,6 +187,11 @@ function EGM(m::AR1Model,p::Param)
 	# final period: consume everything.
 	m.M[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
 	m.C[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
+	cc = m.C[:,:,p.nT]
+	cc[cc.<p.cfloor] = p.cfloor
+	m.C[:,:,p.nT] = cc
+
+	m.V[:,:,p.nT] = u(m.C[:,:,p.nT],p) + p.beta * 0.0
 
 	# preceding periods
 	for it in (p.nT-1):-1:1
@@ -167,10 +218,47 @@ function EGM(m::AR1Model,p::Param)
 
 			# get optimal consumption today from euler equation: invert marginal utility
 			m.C[:,iy,it] = iup(Eu,p)
+			
+			# floor consumption
+			m.C[m.C[:,iy,it].<p.cfloor,iy,it] = p.cfloor
 
 			# get endogenous grid today
 			m.M[:,iy,it] = m.C[:,iy,it] .+ m.avec
 
+
+			# compute value function
+			# ======================
+
+			# expected value function (na,ny)
+			fill!(m.ev,NaN)
+			# dont: don't interpolate anything.
+			if it==(p.nT-1)
+				# if next period is final period, don't have to worry about
+				# next (i.e. period T+1) savings
+				dont = trues(size(m.m1))
+			else
+				dont = m.m1 .< m.M[1,iy,it+1]	# wherever potential next period's cash on hand (m.m1) is less than the lowest grid point of the endogenous grid next period (m.M), the agent will be credit constrained and will be saving zero (here stored in m.Vzero[iy,it+1])
+			end
+
+			# for next period's income state
+			for iiy in 1:p.ny
+				tmpx = m.M[:,iiy,it+1]  
+				vv   = m.V[:,iiy,it+1]
+				for ia in 1:p.na
+					idx = ia+p.na*(iiy-1)
+					if dont[idx]
+						m.ev[idx] = u(m.m1[idx],p) + p.beta * m.Vzero[iiy,it+1]
+					else
+						m.ev[idx] = linearapprox(tmpx,vv,m.m1[idx],1,p.na)
+					end
+				end
+			end
+			ev = transpose(m.ywgt[iy,:] * transpose( m.ev ))
+			if abs(m.avec[1]) > 1e-6
+				error("first element of avec is assumed to be zero: it's not!")
+			end
+			m.Vzero[iy,it] = ev[1] # save expected value of saving zero in first element.
+			m.V[:,iy,it]  = u(m.C[:,iy,it],p) .+ p.beta * ev
 		end  # current income
 	end  # age
 end
@@ -366,6 +454,7 @@ end
 function linearapprox(x::Vector{Float64},y::Vector{Float64},xi::Float64,lo::Int,hi::Int)
 	r = 0.0
 	n = length(x)
+	@assert n==length(y)
 
 	# determining bounds 
 	if xi == x[1]
@@ -398,94 +487,3 @@ end
 
 
 
-
-
-# plotting
-function plots(EE::iidModel,EGM::iidModel,VF::iidModel,p::Param)
-
-	figure()
-
-	# plot consumption funcitons
-	# ==========================
-
-	# solve by maximizing the VF
-	subplot(1,3,1)
-	plot(VF.avec,VF.C[:,1:(p.nT-1)])
-	xlabel("assets")
-	ylabel("consumption")
-	ylim([p.a_low,p.a_high])
-	xlim([p.a_low,p.a_high])
-	plot(ylim(),ylim())
-	title("maximize the value function: $(round(VF.toc,5)) secs")
-
-	subplot(1,3,2)
-	plot(EE.avec,EE.C[:,1:(p.nT-1)])
-	xlabel("assets")
-	ylim([p.a_low,p.a_high])
-	xlim([p.a_low,p.a_high])
-	plot(ylim(),ylim())
-	title("Solving the Euler Equation: $(round(EE.toc,5)) secs")
-
-	# solve by EGM
-	subplot(1,3,3)
-	plot(EGM.M[:,1:(p.nT-1)],EGM.C[:,1:(p.nT-1)])
-	xlabel("cash on hand")
-	ylim([p.a_low,p.a_high])
-	xlim([p.a_low,p.a_high])
-	plot(ylim(),ylim())
-	title("Endogenous Grid Method: $(round(EGM.toc,5)) secs")
-	suptitle("model with iid income uncertainty")
-
-end
-
-
-function plots(EGM::AR1Model,VF::AR1Model,VF_2::AR1Model_a,p::Param,it::Int)
-
-	figure()
-
-	# plot consumption funcitons
-	# ==========================
-
-
-	# solve by EGM
-	subplot(1,3,1)
-	plot(squeeze(EGM.M[:,:,it],3),squeeze(EGM.C[:,:,it],3))
-	xlabel("cash on hand")
-	ylim([p.a_low,p.a_high])
-	xlim([p.a_low,p.a_high])
-	plot(ylim(),ylim())
-	title("Endogenous Grid\n Method: $(round(EGM.toc,5)) secs")
-
-	subplot(1,3,2)
-	# plot(VF.avec.+VF.yvec[iy],squeeze(VF.C[:,:,1],3))
-	plot(VF.avec,squeeze(VF.C[:,:,it],3))
-	# plot(VF.avec,squeeze(VF.C[:,iy,1:(p.nT-1)],2))
-	xlabel("cash on hand")
-	ylabel("consumption")
-	ylim([p.a_low,p.a_high])
-	xlim([p.a_low,p.a_high])
-	plot(ylim(),ylim())
-	title("max V computing expected\n cash-on-hand: $(round(VF.toc,5)) secs")
-
-	subplot(1,3,3)
-	plot([VF_2.avec[i] + VF_2.yvec[j] for i=1:p.na, j=1:p.ny],squeeze(VF_2.C[:,:,it],3))
-	# plot(VF.avec,squeeze(VF.C[:,iy,1:(p.nT-1)],2))
-	xlabel("cash on hand")
-	ylabel("consumption")
-	ylim([p.a_low,p.a_high])
-	xlim([p.a_low,p.a_high])
-	plot(ylim(),ylim())
-	title("max V computing current\n cash-on-hand: $(round(VF_2.toc,5)) secs")
-
-	# subplot(1,3,2)
-	# plot(EE.avec,EE.C[:,iy:(p.nT-1)])
-	# xlabel("assets")
-	# ylim([p.a_low,p.a_high])
-	# xlim([p.a_low,p.a_high])
-	# plot(ylim(),ylim())
-	# title("Solving the Euler Equation: $(round(EE.toc,5)) secs")
-
-
-	suptitle("model with AR1 income, all y-states, period $it")
-
-end

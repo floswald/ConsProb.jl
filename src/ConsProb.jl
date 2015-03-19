@@ -21,7 +21,8 @@ This module has some different ways to solve a standard life-cycle consumption p
 "
 
 include("setup.jl")
-# include("funs.jl")
+include("funs.jl")
+include("plotting.jl")
 
 # export Param, Model
 

@@ -39,6 +39,9 @@ type Param
 	a_high::Float64
 	a_low::Float64
 
+	# consumption floor
+	cfloor :: Float64
+
 	# iid income unertainty
 	mu::Float64
 	sigma::Float64
@@ -51,7 +54,7 @@ type Param
 
 	function Param()
 
-		gamma                 = 3.0
+		gamma                 = 2.0
 		neg_gamma             = (-1.0) * gamma
 		oneminusgamma         = 1.0 - gamma
 		oneover_oneminusgamma = 1.0 / oneminusgamma
@@ -66,16 +69,18 @@ type Param
 		a_high = 300.0
 		a_low  = 1e-6
 
+		cfloor = 0.001
+
 		# iid income uncertainty params
-		mu = 100 	# mean income: 30K
-		sigma = 10  # sd income
+		mu = 10 	# mean income: 30K
+		sigma = 1  # sd income
 
 		# AR1 income uncertainty
 		# params from Ayiagari
 		rho_z = 0.9
 		eps_z = 1
 
-		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,mu,sigma,rho_z,eps_z)
+		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,cfloor,mu,sigma,rho_z,eps_z)
 	end
 end
 
@@ -99,9 +104,9 @@ abstract Model
 
 
 "
-Model with iid income uncertainty V(a)
+Model with iid income uncertainty after Deaton (1991)
 
-uses cash-on-hand m=y+a as state variable: V(a)
+uses cash-on-hand m=y+a as state variable
 "
 type iidModel <: Model
 
@@ -113,6 +118,7 @@ type iidModel <: Model
 	# intermediate objects (na,ny)
 	m1::Array{Float64,2}	# matrix (na,ny)
 	c1::Array{Float64,2}
+	ev::Array{Float64,2}
 	# intermediate objects (ny,1)
 	m2::Vector{Float64} 
 	c2::Vector{Float64} 
@@ -122,6 +128,7 @@ type iidModel <: Model
 	S::Array{Float64,2} 	# savings function on (na,nT)
 	M::Array{Float64,2} 	# endogenous cash on hand on (na,nT)
 	V::Array{Float64,2} 	# value function on (na,nT). Optional.
+	Vzero::Array{Float64,1} 	# value function of saving zero
 
 	toc::Float64   # elapsed time
 
@@ -137,8 +144,14 @@ type iidModel <: Model
 		ywgt = weights .* pi^(-0.5)
 
 		# precompute next period's cash on hand.
-		m1 = p.R * kron(avec,ones(1,p.ny)) .+ kron(ones(p.na,1),transpose(yvec))
+		m1 = Float64[avec[ia]*p.R + yvec[iy] for ia in 1:p.na, iy in 1:p.ny]
+
+		# if you want a deterministic age profile in income, use income().
+		# you would have to change the params of income() though.
+		# m1 = Float64[avec[ia]*p.R + income(yvec[iy],it) for ia in 1:p.na, iy in 1:p.ny, it in 1:p.nT]
+
 		c1 = zeros(p.na,p.ny)
+		ev = zeros(p.na,p.ny)
 
 		m2 = zeros(p.ny)
 		c2 = zeros(p.ny)
@@ -147,13 +160,15 @@ type iidModel <: Model
 		S = zeros(p.na,p.nT)
 		M = zeros(p.na,p.nT)
 		V = zeros(p.na,p.nT)
+		Vzero = zeros(p.nT)
 
 		toc = 0.0
 
 
-		return new(avec,yvec,ywgt,m1,c1,m2,c2,C,S,M,V,toc)
+		return new(avec,yvec,ywgt,m1,c1,ev,m2,c2,C,S,M,V,Vzero,toc)
 	end
 end
+
 
 
 "
@@ -172,6 +187,7 @@ type AR1Model <: Model
 	# intermediate objects (na,ny)
 	m1::Array{Float64,2}	# matrix (na,ny)
 	c1::Array{Float64,2}
+	ev::Array{Float64,2}
 	# intermediate objects (ny,1)
 	m2::Vector{Float64} 
 	c2::Vector{Float64} 
@@ -181,6 +197,7 @@ type AR1Model <: Model
 	S::Array{Float64,3} 	
 	M::Array{Float64,3} 	
 	V::Array{Float64,3} 	
+	Vzero::Array{Float64,2} 	# value function of saving zero
 
 	toc::Float64   # elapsed time
 
@@ -197,6 +214,7 @@ type AR1Model <: Model
 		# precompute next period's cash on hand.
 		m1 = p.R * Float64[avec[i] + yvec[j] for i=1:p.na, j=1:p.ny]
 		c1 = zeros(p.na,p.ny)
+		ev = zeros(p.na,p.ny)
 
 		m2 = zeros(p.ny)
 		c2 = zeros(p.ny)
@@ -205,10 +223,11 @@ type AR1Model <: Model
 		S = zeros(p.na,p.ny,p.nT)
 		M = zeros(p.na,p.ny,p.nT)
 		V = zeros(p.na,p.ny,p.nT)
+		Vzero = zeros(p.ny,p.nT)
 
 		toc = 0.0
 
-		return new(avec,z,yvec,ywgt,m1,c1,m2,c2,C,S,M,V,toc)
+		return new(avec,z,yvec,ywgt,m1,c1,ev,m2,c2,C,S,M,V,Vzero,toc)
 	end
 end
 
