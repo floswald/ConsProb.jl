@@ -24,6 +24,6 @@ include("setup.jl")
 include("funs.jl")
 include("plotting.jl")
 
-# export Param, Model
+export runall
 
 end

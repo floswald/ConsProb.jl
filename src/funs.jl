@@ -2,7 +2,7 @@
 
 
 # run all
-function run()
+function runall()
 
 	# iid income model
 
@@ -10,17 +10,17 @@ function run()
 
 	# solve by standard euler equation root finding
 	EEmod = iidModel(p)
-	EEmod.toc = @elapsed Euler(EEmod,p)
+	EEmod.toc = @elapsed Euler!(EEmod,p)
 
 
 
 	# solve maximizing the value function backward iteration
 	VFmod = iidModel(p)
-	VFmod.toc = @elapsed VFbi(VFmod,p)
+	VFmod.toc = @elapsed VFbi!(VFmod,p)
 
 	# solve by EGM
 	EGMmod = iidModel(p)
-	EGMmod.toc = @elapsed EGM(EGMmod,p)
+	EGMmod.toc = @elapsed EGM!(EGMmod,p)
 
 	# plot results
 	plots(EEmod,EGMmod,VFmod,p)
@@ -29,16 +29,16 @@ function run()
 	# ================
 
 	EGMmod = AR1Model(p)
-	EGMmod.toc = @elapsed EGM(EGMmod,p)
+	EGMmod.toc = @elapsed EGM!(EGMmod,p)
 
 	VFmod = AR1Model(p)
-	VFmod.toc = @elapsed VFbi(VFmod,p)
+	VFmod.toc = @elapsed VFbi!(VFmod,p)
 
 	# does it matter whether I compute the model on 
 	# current assets, given y, or
 	# cash-on-hand, given y?
 	VFmod_a = AR1Model_a(p)
-	VFmod_a.toc = @elapsed VFbi(VFmod_a,p)
+	VFmod_a.toc = @elapsed VFbi!(VFmod_a,p)
 
 	# plot results
 	plots(EGMmod,VFmod,VFmod_a,p,1)  # plot period 1
@@ -109,7 +109,7 @@ end
 
 
 # endogenous grid method
-function EGM(m::iidModel,p::Param)
+function EGM!(m::iidModel,p::Param)
 
 	# final period: consume everything.
 	m.M[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
@@ -182,7 +182,7 @@ end
 
 
 # endogenous grid method for AR1 model
-function EGM(m::AR1Model,p::Param)
+function EGM!(m::AR1Model,p::Param)
 
 	# final period: consume everything.
 	m.M[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
@@ -266,7 +266,7 @@ end
 
 
 # solving the euler equation
-function Euler(m::iidModel,p::Param)
+function Euler!(m::iidModel,p::Param)
 
 	# final period: consume everything.
 	m.M[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
@@ -333,7 +333,7 @@ end
 
 
 # finding the maximum of the value function backward iteration
-function VFbi(m::iidModel,p::Param)
+function VFbi!(m::iidModel,p::Param)
 
 	# final period: consume everything.
 	m.C[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
@@ -370,7 +370,7 @@ end
 # finding the maximum of the value function backward iteration
 # AR1 model
 
-function VFbi(m::AR1Model,p::Param)
+function VFbi!(m::AR1Model,p::Param)
 
 	# final period: consume everything.
 	m.C[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
@@ -413,7 +413,7 @@ end
 
 
 
-function VFbi(m::AR1Model_a,p::Param)
+function VFbi!(m::AR1Model_a,p::Param)
 
 	# final period: consume everything.
 	m.C[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
