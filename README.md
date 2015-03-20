@@ -21,6 +21,11 @@ ConsProb.run()
 
 this will produce the following pictures:
 
-[![values](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/AR1vals.png)]()
+iid income model, all ages:
 [![iidcons](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/iidCons.png)]()
+
+Value functions in AR1 income model, all y-states, age=1:
+[![values](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/AR1vals.png)]()
+
+Consumption functions in AR1 income model, all y-states, age=1:
 [![ar1cons](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/AR1Cons.png)]()
