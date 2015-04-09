@@ -22,6 +22,7 @@ This module has some different ways to solve a standard life-cycle consumption p
 
 include("setup.jl")
 include("funs.jl")
+include("dchoice.jl")
 include("plotting.jl")
 
 export runall

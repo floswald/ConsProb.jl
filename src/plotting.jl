@@ -93,7 +93,7 @@ function plots(EGM::AR1Model,VF::AR1Model,VF_2::AR1Model_a,p::Param,it::Int)
 	plot(ylim(),ylim())
 	title("max V computing\n expected\n cash-on-hand: $(round(VF.toc,3)) secs")
 
-	subplot(1,3,3)
+	subplot(1,3,2)
 	plot([VF_2.avec[i] + VF_2.yvec[j] for i=1:p.na, j=1:p.ny],squeeze(VF_2.C[:,:,it],3))
 	# plot(VF.avec,squeeze(VF.C[:,iy,1:(p.nT-1)],2))
 	xlabel("cash on hand")

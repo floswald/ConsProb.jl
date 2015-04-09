@@ -47,9 +47,9 @@ end
 
 
 
-#utility functions
+#utility function
 
-# utility
+# utility without discrete choice
 function u(x::Float64,p::Param)
 	p.oneover_oneminusgamma * (x^p.oneminusgamma)
 end
@@ -57,10 +57,24 @@ function u{T}(x::Array{T},p::Param)
 	n = length(x)
 	y = zeros(T,n)
 	for i in 1:n
-		y[i] = p.oneover_oneminusgamma * (x[i]^p.oneminusgamma)
+		y[i] = u(x[i],p)
 	end
 	y
 end
+
+# utility with discrete choice
+function u(x::Float64,working::Bool,p::Param)
+	p.oneover_oneminusgamma * (x^p.oneminusgamma) + p.alpha*working
+end
+function u{T}(x::Array{T},working::Bool,p::Param)
+	n = length(x)
+	y = zeros(T,n)
+	for i in 1:n
+		y[i] = u(x[i],working,p)
+	end
+	y
+end
+
 
 # partial derivative of utility wrt c
 function up(c::Float64,p::Param)
