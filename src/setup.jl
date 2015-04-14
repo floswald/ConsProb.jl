@@ -77,7 +77,7 @@ type Param
 		ny = 10
 		nT = 8
 		a_high = 300.0
-		a_low  = 1e-6
+		a_low  = -50.0
 		nD = 2
 
 		cfloor = 0.001
@@ -183,11 +183,87 @@ type iidModel <: Model
 	end
 end
 
+"
+Model with iid income uncertainty and unsecured debt
 
-type Policy
+uses cash-on-hand m=y+a as state variable
+"
+type iidDebtModel <: Model
+
+	# computation grids
+	bounds::Vector{Float64}
+	avec::Matrix{Float64}
+	yvec::Vector{Float64}   # income support
+	ywgt::Vector{Float64}   # income weights
+
+	# intermediate objects (na,ny)
+	m1::Array{Float64,3}	# matrix (na,ny,nt)
+	c1::Array{Float64,2}
+	ev::Array{Float64,2}
+	# intermediate objects (ny,1)
+	m2::Vector{Float64} 
+	c2::Vector{Float64} 
+
+	# result objects
+	C::Array{Float64,2} 	# consumption function on (na,nT)
+	S::Array{Float64,2} 	# savings function on (na,nT)
+	M::Array{Float64,2} 	# endogenous cash on hand on (na,nT)
+	V::Array{Float64,2} 	# value function on (na,nT). Optional.
+	Vzero::Array{Float64,1} 	# value function of saving zero
+
+	toc::Float64   # elapsed time
+
+	@doc "Constructor for iid Debt Model" ->
+	function iidDebtModel(p::Param)
+
+		nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
+
+		# for y ~ N(mu,sigma), integrate y with 
+		# http://en.wikipedia.org/wiki/Gauss-Hermite_quadrature
+		yvec = sqrt(2.0) * p.sigma .* nodes .+ p.mu
+		ywgt = weights .* pi^(-0.5)
+
+		# borrowing limits: natural debt limit approach.
+		# you can borrow the smaller of 3 times average income or
+		# the natural debt limit, which is the lowest income state discounted 
+		# bounds = [(-1)*yvec[1]*(1-p.R^i) /(1- p.R) for i in (p.nT-1):-1:1]
+		# bounds[bounds .< (-5)*mean(yvec)] = (-5)*mean(yvec)
+		# bounds = vcat(bounds,0.0)  #last period
+		bounds = Float64[(-5)*mean(yvec) for i in 1:(p.nT-1)]
+		bounds = vcat(bounds,0.0)  #last period
+
+		avec = zeros(p.na,p.nT)
+		for i=(p.nT):-1:1
+			avec[:,(p.nT)-i+1] = linspace(bounds[(p.nT)-i+1],p.a_high,p.na)
+		end
+		# avec = linspace((-5)*mean(yvec),p.a_high,p.na)
+
+		# precompute next period's cash on hand.
+		m1 = Float64[avec[ia,it+1]*p.R + yvec[iy] for ia in 1:p.na, iy in 1:p.ny, it in 1:(p.nT-1)]
+
+		# if you want a deterministic age profile in income, use income().
+		# you would have to change the params of income() though.
+		# m1 = Float64[avec[ia]*p.R + income(yvec[iy],it) for ia in 1:p.na, iy in 1:p.ny, it in 1:p.nT]
+
+		c1 = zeros(p.na,p.ny)
+		ev = zeros(p.na,p.ny)
+
+		m2 = zeros(p.ny)
+		c2 = zeros(p.ny)
+
+		C = zeros(p.na,p.nT)
+		S = zeros(p.na,p.nT)
+		M = zeros(p.na,p.nT)
+		V = zeros(p.na,p.nT)
+		Vzero = zeros(p.nT)
+
+		toc = 0.0
 
 
-end	
+		return new(bounds,avec,yvec,ywgt,m1,c1,ev,m2,c2,C,S,M,V,Vzero,toc)
+	end
+end
+
 
 "
 Binary Choice Model with iid income uncertainty

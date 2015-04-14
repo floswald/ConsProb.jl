@@ -3,7 +3,7 @@
 module ConsProb
 
 
-using PyPlot, Roots, Optim
+using PyPlot, Roots, Optim, Debug
 using FastGaussQuadrature: gausshermite
 
 # setting up docile documentation

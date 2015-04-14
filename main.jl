@@ -7,8 +7,14 @@ cd("$home/git/EGM/ConsProb.jl/")
 include("src/ConsProb.jl")
 
 p  = ConsProb.Param()
-m  = ConsProb.iidDModel(p)
+m  = ConsProb.iidDebtModel(p)
 ConsProb.EGM!(m,p)
+ConsProb.plot(m.M[:,1:7],m.V[:,1:7])
+ConsProb.xlim([-5,100])
+
+ConsProb.plot(m.M,m.C)
+ConsProb.ylim([0,20])
+ConsProb.xlim([-5,20])
 
 
 

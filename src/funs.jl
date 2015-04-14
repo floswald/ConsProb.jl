@@ -70,7 +70,7 @@ function u{T}(x::Array{T},working::Bool,p::Param)
 	n = length(x)
 	y = zeros(T,n)
 	for i in 1:n
-		y[i] = u(x[i],working,p)
+ 		y[i] = u(x[i],working,p)
 	end
 	y
 end
@@ -278,6 +278,79 @@ function EGM!(m::AR1Model,p::Param)
 end
 
 
+# endogenous grid method for negative borrowing constraint
+function EGM!(m::iidDebtModel,p::Param)
+
+	# final period: consume everything.
+	m.M[:,p.nT] = linspace(0.01,p.a_high,p.na)
+	m.C[:,p.nT] = linspace(0.01,p.a_high,p.na)
+	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
+
+	m.V[:,p.nT] = u(m.C[:,p.nT],p) + p.beta * 0.0
+	# m.Vzero[p.nT] = m.V[1,p.nT] # save expected value of borrowing the maximal amount.
+
+	# preceding periods
+	for it in (p.nT-1):-1:1
+
+
+		# interpolate optimal consumption from next period on all cash-on-hand states
+		# using C[:,it+1] and M[:,it+1], find c(m,it)
+		m1 = m.m1[:,:,it]
+
+		tmpx = [m.bounds[it+1], m.M[:,it+1] ]   # m.avec[1,it+1] is the borrowing limit at age it+1
+		tmpy = [0.0, m.C[:,it+1] ]   # cons always bounded by zero
+		for ia in 1:p.na
+			for iy in 1:p.ny
+				m.c1[ia+p.na*(iy-1)] = linearapprox(tmpx,tmpy,m1[ia+p.na*(iy-1)])
+			end
+		end
+
+		# get expected marginal value of saving: RHS of euler equation
+		# beta * R * E[ u'(c_{t+1}) ] 
+		Eu = p.R * p.beta .* up(m.c1,p) * m.ywgt
+
+		# get optimal consumption today from euler equation: invert marginal utility
+		m.C[:,it] = iup(Eu,p)
+
+		# floor consumption
+		m.C[m.C[:,it].<p.cfloor,it] = p.cfloor
+
+
+		# get endogenous grid today
+		m.M[:,it] = m.C[:,it] .+ m.avec[:,it]
+
+		# compute value function
+		# ======================
+
+		# expected value function (na,ny)
+		fill!(m.ev,NaN)
+		# dont: don't interpolate anything.
+		if it==(p.nT-1)
+			dont = trues((p.na,p.ny))
+		else
+			dont = m1 .< m.M[1,it+1]	# wherever potential next period's cash on hand (m.m1) is less than the lowest grid point of the endogenous grid next period (m.M), the agent will be credit constrained and will be saving zero (m.EV[1,it+1])
+		end
+
+		vv = m.V[:,it+1]
+		tmpx = m.M[:,it+1]  
+		for ia in 1:p.na
+			for iy in 1:p.ny
+				idx = ia+p.na*(iy-1)
+				if dont[idx]
+					m.ev[idx] = u(m.c1[idx],p) + p.beta * m.Vzero[it+1]		# CRUCIAL: use next period's consumption function! cannot just use m1 as was the case with a zero borrowing constraint! m1[1] could be a negative number here!
+				else
+					m.ev[idx] = linearapprox(tmpx,vv,m1[idx])
+				end
+			end
+		end
+		ev = m.ev * m.ywgt
+		# if abs(m.avec[1]) > 1e-6
+		# 	error("first element of avec is assumed to be zero: it's not!")
+		# end
+		m.Vzero[it] = ev[1] # save expected value of borrowing the maximal amount.
+		m.V[:,it]  = u(m.C[:,it],p) + p.beta * ev 
+	end
+end
 
 # solving the euler equation
 function Euler!(m::iidModel,p::Param)
@@ -498,6 +571,17 @@ function linearapprox(x::Vector{Float64},y::Vector{Float64},xi::Float64,lo::Int,
 	@inbounds r = (y[jinf] * (x[jinf+1] - xi) + y[jinf+1] * (xi - x[jinf]) ) / (x[jinf+1] - x[jinf])
 	return r
 end
+linearapprox(x::Vector{Float64},y::Vector{Float64},xi::Float64) = linearapprox(x,y,xi,1,length(x))
+
+function linearapprox(x::Vector{Float64},y::Vector{Float64},xi::Vector{Float64}) 
+	n = length(xi)
+	z = zeros(n)
+	for i in 1:n
+		z[i] = linearapprox(x,y,xi[i])
+	end
+	return z
+end
+
 
 
 
