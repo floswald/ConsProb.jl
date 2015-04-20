@@ -77,14 +77,50 @@ type Param
 		ny = 10
 		nT = 8
 		a_high = 300.0
-		a_low  = -50.0
+		a_low  = 1e-6
 		nD = 2
 
 		cfloor = 0.001
 		alpha = 1.0
 
 		# iid income uncertainty params
-		mu = 1 	# mean income: 30K
+		mu = 10 	# mean income: 30K
+		sigma = 1  # sd income
+
+		# AR1 income uncertainty
+		# params from Ayiagari
+		rho_z = 0.9
+		eps_z = 1
+
+		dorefine=false
+
+		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,nD,cfloor,alpha,mu,sigma,rho_z,eps_z,dorefine)
+	end
+
+	function Param(mu::Float64)
+
+
+		gamma                 = 2.0
+		neg_gamma             = (-1.0) * gamma
+		oneminusgamma         = 1.0 - gamma
+		oneover_oneminusgamma = 1.0 / oneminusgamma
+		neg_oneover_gamma     = (-1.0) / gamma
+
+		beta                  = 0.95
+		R                     = 1.05
+
+		na = 200
+		ny = 10
+		nT = 8
+		a_high = 300.0
+		a_low  = 1e-6
+		nD = 2
+
+		cfloor = 0.001
+		alpha = 1.0
+
+		# iid income uncertainty params
+		 # = 1 	# mean income: 30K
 		sigma = 0.1  # sd income
 
 		# AR1 income uncertainty
@@ -146,10 +182,12 @@ type iidModel <: Model
 
 	toc::Float64   # elapsed time
 
-	@doc "Constructor for iid Model" ->
-	function iidModel(p::Param)
+	solver::ASCIIString
 
-		avec          = linspace(p.a_low,p.a_high,p.na)
+	@doc "Constructor for iid Model" ->
+	function iidModel(p::Param,solver::String="EGM")
+
+		avec          = scaleGrid(p.a_low,p.a_high,p.na,2)
 		nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
 
 		# for y ~ N(mu,sigma), integrate y with 
@@ -179,7 +217,7 @@ type iidModel <: Model
 		toc = 0.0
 
 
-		return new(avec,yvec,ywgt,m1,c1,ev,m2,c2,C,S,M,V,Vzero,toc)
+		return new(avec,yvec,ywgt,m1,c1,ev,m2,c2,C,S,M,V,Vzero,toc,solver)
 	end
 end
 
@@ -210,8 +248,8 @@ type iidDebtModel <: Model
 	M::Array{Float64,2} 	# endogenous cash on hand on (na,nT)
 	V::Array{Float64,2} 	# value function on (na,nT). Optional.
 	Vzero::Array{Float64,1} 	# value function of saving zero
-
-	toc::Float64   # elapsed time
+	
+	dont::Array{Bool,3}	
 
 	@doc "Constructor for iid Debt Model" ->
 	function iidDebtModel(p::Param)
@@ -223,14 +261,18 @@ type iidDebtModel <: Model
 		yvec = sqrt(2.0) * p.sigma .* nodes .+ p.mu
 		ywgt = weights .* pi^(-0.5)
 
+		# end of period assets a are subject to borrowing constraints
 		# borrowing limits: natural debt limit approach.
 		# you can borrow the smaller of 3 times average income or
 		# the natural debt limit, which is the lowest income state discounted 
-		# bounds = [(-1)*yvec[1]*(1-p.R^i) /(1- p.R) for i in (p.nT-1):-1:1]
+		# bounds = [(-1)*yvec[1]*(1-p.R^i) /(1- p.R) for i in (p.nT-2):-1:1]
+
+		# can borrow only up to lowest income value
+		bounds = [(-1)*yvec[1] for i in (p.nT-2):-1:1]
 		# bounds[bounds .< (-5)*mean(yvec)] = (-5)*mean(yvec)
 		# bounds = vcat(bounds,0.0)  #last period
-		bounds = Float64[(-5)*mean(yvec) for i in 1:(p.nT-1)]
-		bounds = vcat(bounds,0.0)  #last period
+		# bounds = Float64[(-5)*mean(yvec) for i in 1:(p.nT-2)]
+		bounds = vcat(bounds,0.0,0.0)  #last and penultimate periods end of period assets must be positive
 
 		avec = zeros(p.na,p.nT)
 		for i=(p.nT):-1:1
@@ -257,10 +299,10 @@ type iidDebtModel <: Model
 		V = zeros(p.na,p.nT)
 		Vzero = zeros(p.nT)
 
-		toc = 0.0
+		dont = falses(p.na,p.ny,p.nT)
 
 
-		return new(bounds,avec,yvec,ywgt,m1,c1,ev,m2,c2,C,S,M,V,Vzero,toc)
+		return new(bounds,avec,yvec,ywgt,m1,c1,ev,m2,c2,C,S,M,V,Vzero,dont)
 	end
 end
 
@@ -450,4 +492,30 @@ function rouwenhorst(rho::Float64,mu_eps,sigma_eps,n)
 
 	z = linspace(mu_eps/(1-rho)-nu,mu_eps/(1-rho)+nu,n);
 	return (z,P)
+end
+
+# asset grid scaling
+function scaleGrid(lb::Float64,ub::Float64,n::Int,logorder::Int=1) 
+	out = zeros(n)
+	if logorder==1
+		off = 1
+		if lb<0 
+			off = 1 - lb #  adjust in case of neg bound
+		end
+		out[1] = log(lb + off) 
+		out[n] = log(ub + off) 
+		out    = linspace(out[1],out[n],n)
+		out    = exp(out) - off  
+	elseif logorder==2
+		off = 1
+		if lb<0 
+			off = 1 - lb #  adjust in case of neg bound
+		end
+		out[1] = log( log(lb + off) + off )
+		out[n] = log( log(ub + off) + off )
+		out    = linspace(out[1],out[n],n)
+		out    = exp( exp(out) - off ) - off
+	else
+		error("supports only double log grid")
+	end
 end

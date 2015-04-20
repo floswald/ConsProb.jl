@@ -1,47 +1,91 @@
 
 
+function solve!(m::Model,p::Param)
+
+	if m.solver == "EGM"
+		EGM!(m,p)
+	elseif m.solver == "VFbi"
+		VFbi!(m,p)
+	elseif m.solver == "Euler"
+		Euler!(m,p)
+	end
+end
+
 
 # run all
 function runall()
 
-	# iid income model
+	# return a Dict of Dicts
+	D = Dict{String,Any}()
+
+	# iid model dict
+	d = Dict{String,Model}()
+
+	# iid income models
 
 	p = Param()
 
 	# solve by standard euler equation root finding
-	EEmod = iidModel(p)
-	EEmod.toc = @elapsed Euler!(EEmod,p)
+	d["Euler"] = iidModel(p)
+	# warm up the JIT
+	Euler!(d["Euler"],p)
+	# reset el
+	d["Euler"] = iidModel(p)
+	# measure time
+	d["Euler"].toc = @elapsed Euler!(d["Euler"],p)
 
 
 
 	# solve maximizing the value function backward iteration
-	VFmod = iidModel(p)
-	VFmod.toc = @elapsed VFbi!(VFmod,p)
+	d["VF"] = iidModel(p)
+	VFbi!(d["VF"],p)
+	d["VF"] = iidModel(p)
+	d["VF"].toc = @elapsed VFbi!(d["VF"],p)
 
 	# solve by EGM
-	EGMmod = iidModel(p)
-	EGMmod.toc = @elapsed EGM!(EGMmod,p)
+	d["EGM"] = iidModel(p)
+	EGM!(d["EGM"],p)
+	d["EGM"] = iidModel(p)
+	d["EGM"].toc = @elapsed EGM!(d["EGM"],p)
+
+	D["iid"] = d
 
 	# plot results
-	plots(EEmod,EGMmod,VFmod,p)
+	# plots(EE,EGM,VF,p)
 
 	# AR1 income model
 	# ================
 
-	EGMmod = AR1Model(p)
-	EGMmod.toc = @elapsed EGM!(EGMmod,p)
+	d2 = Dict{String,Model}()
+	p = Param(10.0)
 
-	VFmod = AR1Model(p)
-	VFmod.toc = @elapsed VFbi!(VFmod,p)
+	d2["EGM"] = AR1Model(p)
+	d2["EGM"].toc = @elapsed EGM!(d2["EGM"],p)
+
+	d2["VF"] = AR1Model(p)
+	d2["VF"].toc = @elapsed VFbi!(d2["VF"],p)
 
 	# does it matter whether I compute the model on 
 	# current assets, given y, or
 	# cash-on-hand, given y?
-	VFmod_a = AR1Model_a(p)
-	VFmod_a.toc = @elapsed VFbi!(VFmod_a,p)
+	d2["VF_a"] = AR1Model_a(p)
+	d2["VF_a"].toc = @elapsed VFbi!(d2["VF_a"],p)
 
-	# plot results
-	plots(EGMmod,VFmod,VFmod_a,p,1)  # plot period 1
+	D["AR1"] = d2
+
+	# # plot results
+	# # plots(EGMmod,VFmod,VFmod_a,p,1)  # plot period 1
+
+
+	# # with debt
+	# d3 = Dict{String,Model}()
+	# p = Param()
+	# d3["EGM"] = iidDebtModel(p)
+	# EGM!(d3["EGM"],p)
+
+	# D["iidDebt"] = d3
+
+	return D
 end
 
 
@@ -126,8 +170,8 @@ end
 function EGM!(m::iidModel,p::Param)
 
 	# final period: consume everything.
-	m.M[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
-	m.C[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
+	m.M[:,p.nT] = m.avec
+	m.C[:,p.nT] = m.avec
 	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
 
 	m.V[:,p.nT] = u(m.C[:,p.nT],p) + p.beta * 0.0
@@ -199,8 +243,8 @@ end
 function EGM!(m::AR1Model,p::Param)
 
 	# final period: consume everything.
-	m.M[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
-	m.C[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
+	m.M[:,:,p.nT] = repmat(m.avec,1,p.ny)
+	m.C[:,:,p.nT] = repmat(m.avec,1,p.ny)
 	cc = m.C[:,:,p.nT]
 	cc[cc.<p.cfloor] = p.cfloor
 	m.C[:,:,p.nT] = cc
@@ -267,7 +311,8 @@ function EGM!(m::AR1Model,p::Param)
 					end
 				end
 			end
-			ev = transpose(m.ywgt[iy,:] * transpose( m.ev ))
+			# ev = transpose(m.ywgt[iy,:] * transpose( m.ev ))
+			ev = m.ev * m.ywgt[iy,:][:] 
 			if abs(m.avec[1]) > 1e-6
 				error("first element of avec is assumed to be zero: it's not!")
 			end
@@ -297,7 +342,7 @@ function EGM!(m::iidDebtModel,p::Param)
 		# using C[:,it+1] and M[:,it+1], find c(m,it)
 		m1 = m.m1[:,:,it]
 
-		tmpx = [m.bounds[it+1], m.M[:,it+1] ]   # m.avec[1,it+1] is the borrowing limit at age it+1
+		tmpx = [m.bounds[it+1], m.M[:,it+1] ]   # m.bounds[it+1] is the borrowing limit at age it+1
 		tmpy = [0.0, m.C[:,it+1] ]   # cons always bounded by zero
 		for ia in 1:p.na
 			for iy in 1:p.ny
@@ -317,10 +362,13 @@ function EGM!(m::iidDebtModel,p::Param)
 
 
 		# get endogenous grid today
-		m.M[:,it] = m.C[:,it] .+ m.avec[:,it]
+		# consumption + end-of-period assets
+		m.M[:,it] = m.C[:,it] .+ m.avec[:,it+1]
 
 		# compute value function
 		# ======================
+
+		dont = m.dont[:,:,it]
 
 		# expected value function (na,ny)
 		fill!(m.ev,NaN)
@@ -349,6 +397,9 @@ function EGM!(m::iidDebtModel,p::Param)
 		# end
 		m.Vzero[it] = ev[1] # save expected value of borrowing the maximal amount.
 		m.V[:,it]  = u(m.C[:,it],p) + p.beta * ev 
+
+		m.dont[:,:,it] = dont 
+
 	end
 end
 
@@ -356,8 +407,10 @@ end
 function Euler!(m::iidModel,p::Param)
 
 	# final period: consume everything.
-	m.M[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
-	m.C[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
+	m.M[:,p.nT] = m.avec 
+	m.C[:,p.nT] = m.avec
+	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
+	m.V[:,p.nT] = u(m.C[:,p.nT],p) + p.beta * 0.0
 
 	# preceding periods
 	for it in (p.nT-1):-1:1
@@ -367,7 +420,7 @@ function Euler!(m::iidModel,p::Param)
 			cash = m.avec[ia] 	# current cash on hand
 
 			# consumption equal to cash on hand
-			res = EulerResid(cash,cash,m.C[:,it+1],p,m)
+			res = EulerResid(cash,cash,m.C[:,it+1],p,m,it)
 
 			# this is an implication of 
 			# equation (6) in Deaton ECTA (1991):
@@ -381,17 +434,27 @@ function Euler!(m::iidModel,p::Param)
 			# where c_{t+1} is implied by today's choice c.
 			# if that difference is negative when c_t = m_t, this means that 
 			# c_t < c_{t+1} or
-			# u'(c_t) > u'(c_{t+1}), or
+			# u'(c_t) > u'(c_{t+1}), or (by c_t = m_t)
 			# u'(m_t) > u'(c_{t+1}), and therefore
 			# u'(c_t) = max[ u'(m_t), beta * R * u'(c_{t+1}) ] implies
 			# that this consumer is borrowing constrained and consumes all cash in hand.
 			if res < 0
 				m.C[ia,it] = cash
 			else
-				m.C[ia,it] = fzero((x)->EulerResid(x,cash,m.C[:,it+1],p,m),cash/2,[1e-6,cash])
+				# m.C[ia,it] = fzero((x)->EulerResid(x,cash,m.C[:,it+1],p,m,it),(cash + p.a_low-0.0001)/2,[p.a_low-0.0001,cash])
+				# m.C[ia,it] = fzero((x)->EulerResid(x,cash,m.C[:,it+1],p,m,it),cash/2,[p.a_low,cash])
+				m.C[ia,it] = fzero((x)->EulerResid(x,cash,m.C[:,it+1],p,m,it),[p.a_low,cash])
 			end
+			m.S[ia,it] = (cash - m.C[ia,it])*p.R
+
+			# get expected value function
+			EV = linearapprox(m.avec,m.V[:,it+1],m.S[ia,it].+ m.yvec)
+
+			m.V[ia,it] = u(m.C[ia,it],p) + p.beta * dot(EV,m.ywgt)
 
 		end
+		ev
+
 
 
 	end
@@ -399,18 +462,25 @@ function Euler!(m::iidModel,p::Param)
 end
 
 # Euler Equation Residual
-function EulerResid(c::Float64,cash::Float64,cplus::Vector{Float64},p::Param,m::iidModel)
+function EulerResid(c::Float64,cash::Float64,cplus::Vector{Float64},p::Param,m::iidModel,it::Int)
 
 	# given current c, what is next period's cash on hand
-	m.m2 = p.R * (cash - c) .+ m.yvec  # (ny,1)
 
-	# interpolate optimal consumption c(t+1), given c(t), on each y-state
-	for iy in 1:p.ny
-		m.c2[iy] = linearapprox([0,m.avec],[0,cplus],m.m2[iy],1,p.na)
-	end
+	# if it == (p.nT-1)
+	# 	# next period is last: no income!
+	# 	Euc = p.R .* p.beta .* up(p.R * (cash - c),p)
+	# else
+		m.m2 = p.R * (cash - c) .+ m.yvec  # (ny,1)
+		# interpolate optimal consumption c(t+1), given c(t), on each y-state
+		m.c2 = linearapprox([0,m.avec],[0,cplus],m.m2)
+		# for iy in 1:p.ny
+		# 	# m.c2[iy] = linearapprox([0,m.avec],[0,cplus],m.m2[iy],1,p.na)
+		# 	m.c2[iy] = linearapprox(m.avec,cplus,m.m2[iy])
+		# end
 
-	# Expected marginal utility of consumption (RHS of euler equation)
-	Euc = dot(p.R .* p.beta .* up(m.c2,p), m.ywgt) 	# (1,1)
+		# Expected marginal utility of consumption (RHS of euler equation)
+		Euc = dot(p.R .* p.beta .* up(m.c2,p), m.ywgt) 	# (1,1)
+	# end
 
 	# residual
 	c - iup(Euc,p)
@@ -423,7 +493,8 @@ end
 function VFbi!(m::iidModel,p::Param)
 
 	# final period: consume everything.
-	m.C[:,p.nT] = linspace(p.a_low,p.a_high*4,p.na)
+	m.C[:,p.nT] = m.avec
+	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
 	m.V[:,p.nT] = u(m.C[:,p.nT],p)
 
 	# preceding periods
@@ -435,15 +506,14 @@ function VFbi!(m::iidModel,p::Param)
 
 			# Brent's method for minimizing a function
 			# withotu derivatives
-			x = optimize((x)->VFobj(x,cash,m.V[:,it+1],m,p,m.ywgt),1e-7,cash)
+			x = optimize((x)->VFobj(x,cash,m.V[:,it+1],m,p,m.ywgt,it),p.a_low-100*eps(),cash)
 			m.V[ia,it] = -x.f_minimum
 			m.C[ia,it] = x.minimum
 		end
 	end
 end
-function VFobj(c::Float64,cash::Float64,Vplus::Array{Float64},m::iidModel,p::Param,integw::Vector{Float64})
+function VFobj(c::Float64,cash::Float64,Vplus::Array{Float64},m::iidModel,p::Param,integw::Vector{Float64},it::Int)
 
-	# implied cash on hand tomorrow
 	s = (cash - c) * p.R .+ m.yvec
 	for iy in 1:p.ny
 		m.m2[iy] = linearapprox(m.avec,Vplus,s[iy],1,p.na)
@@ -460,7 +530,9 @@ end
 function VFbi!(m::AR1Model,p::Param)
 
 	# final period: consume everything.
-	m.C[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
+	x = m.avec
+	x[x.<p.cfloor] = p.cfloor
+	m.C[:,:,p.nT] = repmat(x,1,p.ny)
 	m.V[:,:,p.nT] = u(m.C[:,:,p.nT],p)
 
 	# preceding periods
@@ -478,7 +550,7 @@ function VFbi!(m::AR1Model,p::Param)
 
 				# Brent's method for minimizing a function
 				# without derivatives
-				x = optimize((x)->VFobj(x,cash,m.V[:,:,it+1],m,p,m.ywgt[iy,:][:]),1e-7,cash)
+				x = optimize((x)->VFobj(x,cash,m.V[:,:,it+1],m,p,m.ywgt[iy,:][:]),p.a_low-100*eps(),cash)
 				m.V[ia,iy,it] = -x.f_minimum
 				m.C[ia,iy,it] = x.minimum
 			end
@@ -494,6 +566,7 @@ function VFobj(c::Float64,cash::Float64,Vplus::Matrix{Float64},m::AR1Model,p::Pa
 		m.m2[iy] = linearapprox(m.avec,Vplus[:,iy],s[iy],1,p.na)
 	end
 	v = u(c,p) + p.beta * dot(m.m2,integw)
+
 	return -v
 end
 
@@ -503,7 +576,9 @@ end
 function VFbi!(m::AR1Model_a,p::Param)
 
 	# final period: consume everything.
-	m.C[:,:,p.nT] = repmat(linspace(p.a_low,p.a_high*4,p.na),1,p.ny)
+	x = m.avec
+	x[x.<p.cfloor] = p.cfloor
+	m.C[:,:,p.nT] = repmat(x,1,p.ny)
 	m.V[:,:,p.nT] = u(m.C[:,:,p.nT],p)
 
 	# preceding periods
@@ -513,7 +588,7 @@ function VFbi!(m::AR1Model_a,p::Param)
 		for iy in 1:p.ny
 
 			# compute conditional expected value function
-			m.EV =  m.V[:,:,it+1] * m.ywgt[iy,:][:]  # (1,ny) * (ny,na) = (1,na)
+			m.EV =  m.V[:,:,it+1] * m.ywgt[iy,:][:]  # (na,ny) * (ny,1) = (na,	1)
 
 			for ia in 1:p.na
 
@@ -521,7 +596,7 @@ function VFbi!(m::AR1Model_a,p::Param)
 
 				# Brent's method for minimizing a function
 				# withotu derivatives
-				x = optimize((x)->VFobj(x,cash,m,p),1e-7,cash)
+				x = optimize((x)->VFobj(x,cash,m,p),p.a_low-100*eps(),cash)
 				m.V[ia,iy,it] = -x.f_minimum
 				m.C[ia,iy,it] = x.minimum
 			end
@@ -533,7 +608,7 @@ function VFobj(c::Float64,cash::Float64,m::AR1Model_a,p::Param)
 	# implied savings tomorrow
 	s = (cash - c) * p.R 
 	# get the expected value function at savings s
-	EV = linearapprox(m.avec,m.EV,s,1,p.na)
+	EV = linearapprox(m.avec,m.EV,s)
 	v = u(c,p) + p.beta * EV
 	return -v
 end

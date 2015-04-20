@@ -25,6 +25,15 @@ include("funs.jl")
 include("dchoice.jl")
 include("plotting.jl")
 
-export runall
+export runall,
+	   Model,
+	   Param,
+	   iidModel,
+	   Euler!,
+	   VFbi!,
+	   EGM!,
+	   plots,
+	   solve!
+
 
 end
