@@ -48,7 +48,7 @@ function runall()
 	d["EGM"] = iidModel(p)
 	d["EGM"].toc = @elapsed EGM!(d["EGM"],p)
 
-	D["iid"] = d
+	D["iid"] = d	
 
 	# plot results
 	# plots(EE,EGM,VF,p)

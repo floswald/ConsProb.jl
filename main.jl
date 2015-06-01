@@ -5,6 +5,11 @@ home = ENV["HOME"]
 cd("$home/git/EGM/ConsProb.jl/")
 
 include("src/ConsProb.jl")
+p  = ConsProb.Param()
+m  = ConsProb.iidDModel(p)
+ConsProb.EGM!(m,p)
+ConsProb.plots(m,p)
+
 
 
 include("test/tfuns.jl")
@@ -19,6 +24,7 @@ ConsProb.plot(m.M[:,1:7],m.C[:,1:7])
 ConsProb.ylim([-1,2])
 ConsProb.xlim([-1,2])
 
+ConsProb.printplots()
 
 
 m  = ConsProb.iidModel(p,"Euler")
@@ -56,6 +62,7 @@ f = ConsProb.plots(r,p)
 
 ConsProb.figure(f[1][:number])
 ConsProb.savefig("$home/Dropbox/public/ConsProb.jl/iidCons.png")
+
 
 
 ConsProb.figure("AR1cons")

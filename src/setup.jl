@@ -1,7 +1,7 @@
 
 
 
-"
+@doc """
 Holds the user-set parameter values. 
 
 **values to be set:**
@@ -21,7 +21,7 @@ Holds the user-set parameter values.
 * `dorefinements`: boolean switch of whether to filter out whiggles
 * `alpha`: disutility of work
 
-"
+""" ->
 type Param
 
 	# CRRA
@@ -60,8 +60,6 @@ type Param
 
 	dorefinements::Bool
 
-
-
 	function Param()
 
 		gamma                 = 2.0
@@ -73,19 +71,21 @@ type Param
 		beta                  = 0.95
 		R                     = 1.05
 
-		na = 200
-		ny = 10
-		nT = 8
+		na     = 200
+		ny     = 10
+		nT     = 8
 		a_high = 300.0
 		a_low  = 1e-6
-		nD = 2
+		nD     = 2
 
 		cfloor = 0.001
 		alpha = 1.0
 
 		# iid income uncertainty params
-		mu = 10 	# mean income: 30K
-		sigma = 1  # sd income
+		# mu = 10 	# mean income: 30K
+		# sigma = 1  # sd income
+		mu = 1 	# mean income: 30K
+		sigma = 0.1  # sd income
 
 		# AR1 income uncertainty
 		# params from Ayiagari
@@ -137,7 +137,7 @@ end
 # Abstract Model type
 # this is an overall model type, with potential subtypes
 
-"
+@doc """
 Abstract Model type
 
 **There are three model types:**
@@ -145,7 +145,7 @@ Abstract Model type
 1. model with iid income uncertainty, use cash-on-hand m=y+a as state variable: V(a)
 2. model with AR1 income uncertainty, use cash-on-hand m=y+a and y as state variables: V(m,y)
 3. model with AR1 income uncertainty, use current assets a and y as state variables: V(a,y)
-"
+""" ->
 abstract Model
 
 
@@ -153,11 +153,11 @@ abstract Model
 
 
 
-"
+@doc """
 Model with iid income uncertainty after Deaton (1991)
 
 uses cash-on-hand m=y+a as state variable
-"
+""" ->
 type iidModel <: Model
 
 	# computation grids
@@ -221,11 +221,11 @@ type iidModel <: Model
 	end
 end
 
-"
+@doc """
 Model with iid income uncertainty and unsecured debt
 
 uses cash-on-hand m=y+a as state variable
-"
+""" ->
 type iidDebtModel <: Model
 
 	# computation grids
@@ -306,12 +306,21 @@ type iidDebtModel <: Model
 	end
 end
 
+type Envelope
+	cond :: Dict{Int,Vector{Float64}} 	# dict of functions conditional on discrete choice
+	env  :: Vector{Float64}	# actual envelope over discrete choices
+end
 
-"
+function cond(e::Envelope,which::Int)
+	e.cond[which]
+end
+
+
+@doc """
 Binary Choice Model with iid income uncertainty
 
 uses cash-on-hand m=y+a as state variable
-"
+""" ->
 type iidDModel <: Model
 
 	# nD is number of discrete choices: nD = 2
@@ -327,9 +336,11 @@ type iidDModel <: Model
 	ev::Matrix{Float64}
 
 	# result objects
+	m :: Dict{Int,Envelope}
+	v :: Dict{Int,Envelope}
+	c :: Dict{Int,Envelope}
 
-	dpolicy::Dict{Int,Dict}	# a dict[it] for each period
-	envelope::Dict{Int,Dict} # a dict[it] for each period
+	dchoice::Dict{Int,Dict} # a dict[it] for each period
 
 	# C::Array{Float64,3} 	# consumption function on (na,nT,nD)
 	# S::Array{Float64,3} 	# savings function on (na,nT,nD)
@@ -360,20 +371,20 @@ type iidDModel <: Model
 		ev = zeros(p.na,p.ny)
 
 		# dicts
-		dpolicy = [it => [id => ["c" => zeros(p.na), "s" => zeros(p.na), "m" => zeros(p.na),"v" => zeros(p.na), "Vzero" => 0.0] for id=1:p.nD] for it=1:p.nT]
-		envelope = [it => ["c" => zeros(p.na), "s" => zeros(p.na), "m" => zeros(p.na),"v" => zeros(p.na), "dchoice" => zeros(Int,p.na), "Vzero" => 0.0, "threshold" => 0.0] for it=1:p.nT]
+		m = [it => Envelope([id => zeros(p.na) for id in 1:2],zeros(p.na))]
+		v = [it => Envelope([id => zeros(p.na) for id in 1:2],zeros(p.na))]
+		c = [it => Envelope([id => zeros(p.na) for id in 1:2],zeros(p.na))]
+		dchoice = [it => ["d" => zeros(Int,p.na), "Vzero" => 0.0, "threshold" => 0.0] for it=1:p.nT]
 
-
-
-		return new(avec,yvec,ywgt,m1,c1,ev,dpolicy,envelope)
+		return new(avec,yvec,ywgt,m1,c1,ev,m,v,ca,dchoice)
 	end
 end
 
-"
+@doc """
 Model with AR1 income uncertainty V(m,y)
 
 uses cash-on-hand m=y+a and current income state y as state variables. Tracking y is necessary in order to compute the conditional expectation on y.
-"
+""" ->
 type AR1Model <: Model
 
 	# computation grids
@@ -470,13 +481,13 @@ type AR1Model_a <: Model
 	end
 end
 
-"""
+@doc """
 rouwenhorst AR1 approximation 
 
 
 This is taken from [http://karenkopecky.net/RouwenhorstPaperFinal.pdf](Karen Kopecky's paper)
 
-"""
+"""->
 function rouwenhorst(rho::Float64,mu_eps,sigma_eps,n)
 	q = (rho+1)/2
 	nu = ((n-1)/(1-rho^2))^(1/2) * sigma_eps

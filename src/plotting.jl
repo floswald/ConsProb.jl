@@ -232,6 +232,20 @@ function plots(d::Dict,p::Param)
 end
 
 	
+function printplots()
+	home = ENV["HOME"]
+	r = runall()
+	p = Param()
+	f = plots(r,p)
+	figure(f[1][:number])
+	savefig("$home/Dropbox/public/ConsProb.jl/iidCons.png")
+	figure(f[2][:number])
+	savefig("$home/Dropbox/public/ConsProb.jl/iidVfun.png")
+	figure(f[3][:number])
+	savefig("$home/Dropbox/public/ConsProb.jl/AR1Cons.png")
+	figure(f[4][:number])
+	savefig("$home/Dropbox/public/ConsProb.jl/AR1Vfun.png")
+end
 
 
 function plots(EGM::AR1Model,VF::AR1Model,VF_2::AR1Model_a,p::Param,it::Int)
@@ -292,8 +306,19 @@ function plots(EGM::AR1Model,VF::AR1Model,VF_2::AR1Model_a,p::Param,it::Int)
 	xlabel("cash on hand")
 	title("max V current\n cash-on-hand")
 	grid("on")
-
-
-
-
 end
+
+
+function plots(m::iidDModel,p::Param)
+
+    jet = ColorMap("jet")[:__call__] # get a color map function
+	f = figure()
+	plot(m.envelope[1]["m"],m.envelope[1]["v"],color=jet(0),lw=2,alpha=0.6,label="period 1")
+	plot(m.envelope[p.nT]["m"],m.envelope[p.nT]["v"],color="black",lw=2,label="period $(p.nT)")
+	for it in 2:(p.nT-1)
+		x = m.envelope[it]["m"]
+		plot(x,m.envelope[it]["v"],color=jet(it/(p.nT)),lw=2,alpha=0.6)
+	end
+	return f
+end
+
