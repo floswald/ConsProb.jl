@@ -23,9 +23,9 @@ solved with EGM."
 
 			# get out today's d-choice conditional optimal policies
 			# from the m object
-			m0 = m.dpolicy[it][id]["m"]
-			c0 = m.dpolicy[it][id]["c"]
-			v0 = m.dpolicy[it][id]["v"]
+			# m0 = cond(m.m,it,id)
+			# c0 = cond(m.c,it,id)
+			# v0 = cond(m.v,it,id)
 
 			if it==p.nT
 				# final period: consume everyting.
@@ -42,8 +42,8 @@ solved with EGM."
 				mm1 = m.m1[it+1][id]
 
 				# next period's endogenous grid and cons function
-				m1 = m.dpolicy[it+1][id]["m"]
-				c1 = m.dpolicy[it+1][id]["c"]
+				m1 = cond(m.m,it+1,id)
+				c1 = cond(m.c,it+1,id) 
 
 				# prepend next period's optimal policies with a zero to capture credit constraint
 				tmpx = [0.0, m1 ] 	# if you have debt in the model, just change 0.0 to the maximum debt amount.
@@ -73,8 +73,8 @@ solved with EGM."
 				# compute value function
 				# ======================
 
-				vv = m.envelope[it+1]["v"]
-				tmpx = m.envelope[it+1]["m"]  
+				vv   = env(m.v,it+1)
+				tmpx = env(m.m,it+1)
 
 				# expected value function (na,ny)
 				fill!(m.ev,NaN)
@@ -82,8 +82,8 @@ solved with EGM."
 				if it==(p.nT-1)
 					dont = trues(size(mm1))
 				else
-					println("size(m.envelope[it+1][m]) = $(size(m.envelope[it+1]["m"]))")
-					dont = mm1 .< m.envelope[it+1]["m"][1]	# wherever potential next period's cash on hand (m.m1) is less than the lowest grid point of the endogenous grid next period, the agent will be credit constrained and will be saving zero 
+					# println("size(m.envelope[it+1][m]) = $(size(m.envelope[it+1]["m"]))")
+					dont = mm1 .< env(m.m,it+1)[1]	# wherever potential next period's cash on hand (m.m1) is less than the lowest grid point of the endogenous grid next period, the agent will be credit constrained and will be saving zero 
 				end
 
 				# again, compute EV directly for the credit constrained cases.
@@ -94,11 +94,11 @@ solved with EGM."
 						idx = ia+p.na*(iy-1)
 						# if credit constrained and next period is last: will choose retire and zero savings!
 						if dont[idx] && it==(p.nT-1)
-							m.ev[idx] = u(mm1[idx],false,p) + p.beta * m.envelope[it+1]["Vzero"]
+							m.ev[idx] = u(mm1[idx],false,p) + p.beta * vzero(m.v,it+1)
 
 						# if credit constrained and next period is not last: will choose work and zero savings!
 						elseif dont[idx] && it!=(p.nT-1)
-							m.ev[idx] = u(mm1[idx],true,p) + p.beta * m.envelope[it+1]["Vzero"]
+							m.ev[idx] = u(mm1[idx],true,p) + p.beta * vzero(m.v,it+1)
 						else
 						# if not credit constrained: will save!
 							m.ev[idx] = linearapprox(tmpx,vv,mm1[idx],1,p.na)
@@ -108,7 +108,7 @@ solved with EGM."
 				# remember that mm1 is next period's cash on hand if TODAY discrete choice is id (e.g. work)
 				ev = m.ev * m.ywgt
 				if abs(m.avec[1]) < eps()
-					m.dpolicy[it+1][id]["Vzero"] = ev[1]
+					m.v[it+1].cond_vzero[id] = ev[1]
 				end
 				v0  = u(c0,working,p) + p.beta * ev 
 
@@ -153,9 +153,9 @@ solved with EGM."
 				end # if refinements
 			end  # if final period
 			# plug back into object
-			m.dpolicy[it][id]["m"]  = m0 
-			m.dpolicy[it][id]["c"]  = c0 
-			m.dpolicy[it][id]["v"]  = v0 
+			set!(m.m,it,id,m0)
+			set!(m.c,it,id,c0)
+			set!(m.v,it,id,v0)
 		end  # loop over discrete choice
 
 		# compute envelopes: compare discrete choice vfuns
@@ -164,9 +164,9 @@ solved with EGM."
 		if it == p.nT
 			# in last period it's optimal to retire.
 			# and consume everything
-			m.envelope[it]["m"] = linspace(m.avec[1],p.a_high*4,p.na)
-			m.envelope[it]["c"] = linspace(m.avec[1],p.a_high*4,p.na)
-			m.envelope[it]["Vzero"] = 0.0
+			set!(m.m,it,linspace(m.avec[1],p.a_high*4,p.na))
+			set!(m.c,it,linspace(m.avec[1],p.a_high*4,p.na))
+			m.dchoice[it]["Vzero"] = 0.0
 
 		else
 
@@ -185,14 +185,12 @@ solved with EGM."
 			# ------------------------------------------------
 
 			# mark points of RETIRED grid that fall into the credit constraint
-			# region of WORKING. 
-			mark = m.dpolicy[it][1]["m"] .< m.dpolicy[it][2]["m"][1]
-			println("mark = $mark")
+			# region of WORKING (i.e. smaller than first elt of endog grid)
+			mark = cond(m.m,it,1) .< cond(m.m,it,2)[1]
 
 			# add indicators in credit constrained region
 			# here is the retirment value better than work
-			mark1 = m.dpolicy[it][1]["v"][mark] .> u(max(p.cfloor,m.dpolicy[it][1]["m"][mark]),true,p) + p.beta * m.dpolicy[it+1][2]["Vzero"]
-			println("mark1 = $mark1")
+			mark1 = cond(m.v,it,1)[mark] .> u(max(p.cfloor,cond(m.m,it,1)[mark]),true,p) + p.beta * vzero(m.v,it+1,2)
 
 			# v(work) was analytic here
 
@@ -200,19 +198,17 @@ solved with EGM."
 			mark = !mark
 
 			# where is retiring better than work outside of the credit constrained region? must interpolate.
-			mark1 = [mark1, m.dpolicy[it][1]["v"][mark] .> linearapprox(m.dpolicy[it][2]["m"][mark],m.dpolicy[it][2]["v"][mark], m.dpolicy[it][1]["m"][mark])]
+			mark1 = [mark1, cond(m.v,it,1)[mark] .> linearapprox(cond(m.m,it,2)[mark],cond(m.v,it,2)[mark], cond(m.m,it,1)[mark])]
 
 			# 2) points from WORKING grid that should appear in envelope
 			# ----------------------------------------------------------
 
 			# where is WORKING better than RETIRE?
 			# notice that we interpolate RETIRE on it's endo grid, so that we can get it's values at the endo grid of WORK - i.e. the points that v(work) is defined on!
-			println("m.dpolicy[it][2][v] = $(m.dpolicy[it][2]["v"])")
-			println("linearapprox = $(linearapprox(m.dpolicy[it][1]["m"],m.dpolicy[it][1]["m"],m.dpolicy[it][2]["m"]))")
+			# println("m.dpolicy[it][2][v] = $(m.dpolicy[it][2]["v"])")
+			# println("linearapprox = $(linearapprox(m.dpolicy[it][1]["m"],m.dpolicy[it][1]["m"],m.dpolicy[it][2]["m"]))")
 
-			mark2 = m.dpolicy[it][2]["v"] .> linearapprox(m.dpolicy[it][1]["m"],m.dpolicy[it][1]["v"],m.dpolicy[it][2]["m"])
-			println("mark1 = $mark1")
-			println("mark2 = $mark2")
+			mark2 = cond(m.v,it,2) .> linearapprox(cond(m.m,it,1),cond(m.v,it,1),cond(m.m,it,2))
 
 			# find intersection points
 			i1 = find(mark1)  
@@ -235,17 +231,18 @@ solved with EGM."
 				if length(i2) == 0
 					# intersection in credit constraint of WORKING
 					# use analytic forms
-					func = (x)->u(x,true,p) + p.beta * m.dpolicy[it+1][2]["Vzero"] - linearapprox(m.dpolicy[it][1]["m"],m.dpolicy[it][1]["v"],x)
-					isectm = fzero(func,m.dpolicy[it][2][1])
+					func = (x)->u(x,true,p) + p.beta * vzero(m.v,it,1) - linearapprox(cond(m.m,it,1),cond(m.v,it,1),x)
+					isectm = fzero(func,cond(m.m,it,2)[1])
+					# isectm = fzero(func,m.dpolicy[it][2][1])
 					# why do you use two points here?
 					isectm = vcat(isectm, isectm + 100.0*eps())
-					isectv = vcat(u(max(p.cfloor,isectm[1]),true,p) + p.beta*m.dpolicy[it+1][2]["Vzero"], u(max(p.cfloor,isectm[2]),true,p) + p.beta*m.dpolicy[it+1][2]["Vzero"])
+					isectv = vcat(u(max(p.cfloor,isectm[1]),true,p) + p.beta*vzero(m.v,it+1,2), u(max(p.cfloor,isectm[2]),true,p) + p.beta*vzero(m.v,it+1,2))
 				else
 					# just get the linear segment connecting 
-					a1 = (m.dpolicy[it][1]["v"][i1+1] - m.dpolicy[it][1]["v"][i1]) / (m.dpolicy[it][1]["m"][i1+1] - m.dpolicy[it][1]["m"][i1])
-					a2 = (m.dpolicy[it][2]["v"][i2+1] - m.dpolicy[it][2]["v"][i2]) / (m.dpolicy[it][2]["m"][i2+1] - m.dpolicy[it][2]["m"][i2])
-					b1 = m.dpolicy[it][1]["v"][i1] - a1*m.dpolicy[it][1]["m"][i1]
-					b2 = m.dpolicy[it][2]["v"][i2] - a2*m.dpolicy[it][2]["m"][i2]
+					a1 = (cond(m.v,it,1)[i1+1] - cond(m.v,it,1)[i1]) / (cond(m.m,it,1)[i1+1] - cond(m.m,it,1)[i1])
+					a2 = (cond(m.v,it,2)[i2+1] - cond(m.v,it,2)[i2]) / (cond(m.m,it,2)[i2+1] - cond(m.m,it,2)[i2])
+					b1 = cond(m.v,it,1)[i1] - a1*cond(m.m,it,1)[i1]
+					b2 = cond(m.v,it,2)[i2] - a2*cond(m.m,it,2)[i2]
 
 					isectm = vcat((b2-b1)/(a1-a2), 100.0*eps() + (b2-b1)/(a1-a2))
 
@@ -254,16 +251,14 @@ solved with EGM."
 				end
 
 				# consumption function from both rules
-				isectc = vcat( linearapprox(m.dpolicy[it][2]["m"],m.dpolicy[it][2]["c"],isectm[1]), linearapprox(m.dpolicy[it][1]["m"],m.dpolicy[it][1]["c"],isectm[2]) )
+				isectc = vcat( linearapprox(cond(m.m,it,2),cond(m.c,it,2),isectm[1]), linearapprox(cond(m.m,it,1),cond(m.c,it,1),isectm[2]) )
 			end
 
 			# combine points from both grids into envelope
-			m.envelope[it]["m"] = vcat( m.dpolicy[it][2]["m"][mark2], isectm, m.dpolicy[it][1]["m"][mark1])
-			m.envelope[it]["c"] = vcat( m.dpolicy[it][2]["c"][mark2], isectc, m.dpolicy[it][1]["c"][mark1])
-			m.envelope[it]["v"] = vcat( m.dpolicy[it][2]["v"][mark2], isectv, m.dpolicy[it][1]["v"][mark1])
-			m.envelope[it]["Vzero"] = m.dpolicy[it][2]["Vzero"]	 # in this example, at zero savings you always work. in a more general example, also Vzero would have to be the max over all Vzero's.
-
-			println("m.envelope[it][m] = $(m.envelope[it]["m"])")
+			set!(m.m,it,vcat( cond(m.m,it,2)[mark2], isectm, cond(m.m,it,1)[mark1]))
+			set!(m.c,it,vcat( cond(m.c,it,2)[mark2], isectm, cond(m.c,it,1)[mark1]))
+			set!(m.v,it,vcat( cond(m.v,it,2)[mark2], isectm, cond(m.v,it,1)[mark1]))
+			m.v[it].vzero = vzero(m.v,it,2) # in this example, at zero savings you always work. in a more general example, also Vzero would have to be the max over all Vzero's.
 
 		end
 	end
@@ -275,6 +270,5 @@ function getM(m::iidDModel,env=false)
 		# return TxN_states matrix
 	else
 		# return T x N_states x N_D
-		
-
+	end
 end

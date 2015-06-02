@@ -12,6 +12,17 @@ function solve!(m::Model,p::Param)
 end
 
 
+function dchoice()
+
+	p  = ConsProb.Param()
+	m  = ConsProb.iidDModel(p)
+	ConsProb.EGM!(m,p)
+	PyPlot.plot(ConsProb.dmat(m.v,1))
+	PyPlot.figure()
+	PyPlot.plot(ConsProb.dmat(m.c,1))
+	return m
+end
+
 # run all
 function runall()
 
@@ -108,7 +119,7 @@ end
 
 # utility with discrete choice
 function u(x::Float64,working::Bool,p::Param)
-	p.oneover_oneminusgamma * (x^p.oneminusgamma) + p.alpha*working
+	p.oneover_oneminusgamma * (x^p.oneminusgamma) - p.alpha*working
 end
 function u{T}(x::Array{T},working::Bool,p::Param)
 	n = length(x)

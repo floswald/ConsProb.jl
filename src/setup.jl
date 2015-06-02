@@ -79,7 +79,7 @@ type Param
 		nD     = 2
 
 		cfloor = 0.001
-		alpha = 1.0
+		alpha = 0.5
 
 		# iid income uncertainty params
 		# mu = 10 	# mean income: 30K
@@ -307,13 +307,61 @@ type iidDebtModel <: Model
 end
 
 type Envelope
-	cond :: Dict{Int,Vector{Float64}} 	# dict of functions conditional on discrete choice
-	env  :: Vector{Float64}	# actual envelope over discrete choices
+	cond       :: Dict{Int,Vector{Float64}} 	# dict of functions conditional on discrete choice
+	cond_vzero :: Dict{Int,Float64} 	# dict of expected value of saving zero by discrete choice
+	vzero      :: Float64 	# dict of expected value of saving zero
+	env        :: Vector{Float64}	# actual envelope over discrete choices
 end
 
 function cond(e::Envelope,which::Int)
 	e.cond[which]
 end
+function cond(e::Dict{Int,Envelope},it::Int,which::Int)
+	cond(e[it],which)
+end
+function env(e::Dict{Int,Envelope},it::Int)
+	e[it].env
+end
+function set!(e::Dict{Int,Envelope},it::Int,v::Vector{Float64})
+	e[it].env = v
+end
+function set!(e::Dict{Int,Envelope},it::Int,which::Int,v::Vector{Float64})
+	e[it].cond[which] = v
+end
+function vzero(e::Dict{Int,Envelope},it::Int,which::Int)
+	e[it].cond_vzero[which]
+end
+function vzero(e::Dict{Int,Envelope},it::Int)
+	e[it].vzero
+end
+
+@doc "get a matrix of conditional values by period" ->
+function dmat(e::Dict{Int,Envelope},it)
+	v = e[it].cond[1]
+	for id in 2:length(e[it].cond)
+		v = hcat(v,e[it].cond[id])
+	end
+	v
+end
+
+@doc "get a matrix of all values conditional on dchoice" ->
+function mat(e::Dict{Int,Envelope},which)
+	v = e[1].cond[which]
+	for it in 2:length(e)
+		v = hcat(v,e[it].cond[which])
+	end
+	v
+end
+
+@doc "get a matrix of all envelope values" ->
+function mat(e::Dict{Int,Envelope})
+	v = env(e,1)
+	for it in 1:length(e)
+		v = hcat(v,env(e,it))
+	end
+	v
+end
+
 
 
 @doc """
@@ -371,12 +419,12 @@ type iidDModel <: Model
 		ev = zeros(p.na,p.ny)
 
 		# dicts
-		m = [it => Envelope([id => zeros(p.na) for id in 1:2],zeros(p.na))]
-		v = [it => Envelope([id => zeros(p.na) for id in 1:2],zeros(p.na))]
-		c = [it => Envelope([id => zeros(p.na) for id in 1:2],zeros(p.na))]
+		m = [it => Envelope([id => zeros(p.na) for id in 1:2],[id => 0.0 for id in 1:2], 0.0, zeros(p.na)) for it in 1:p.nT]
+		v = [it => Envelope([id => zeros(p.na) for id in 1:2],[id => 0.0 for id in 1:2], 0.0, zeros(p.na)) for it in 1:p.nT]
+		c = [it => Envelope([id => zeros(p.na) for id in 1:2],[id => 0.0 for id in 1:2], 0.0, zeros(p.na)) for it in 1:p.nT]
 		dchoice = [it => ["d" => zeros(Int,p.na), "Vzero" => 0.0, "threshold" => 0.0] for it=1:p.nT]
 
-		return new(avec,yvec,ywgt,m1,c1,ev,m,v,ca,dchoice)
+		return new(avec,yvec,ywgt,m1,c1,ev,m,v,c,dchoice)
 	end
 end
 
