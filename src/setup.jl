@@ -59,10 +59,12 @@ type Param
 	eps_z::Float64
 
 	dorefinements::Bool
+	printdebug::Bool
 
-	function Param()
+	# constructor for discrete choice model: log utility
+	function Param(gamm::Float64)
 
-		gamma                 = 2.0
+		gamma                 = gamm
 		neg_gamma             = (-1.0) * gamma
 		oneminusgamma         = 1.0 - gamma
 		oneover_oneminusgamma = 1.0 / oneminusgamma
@@ -75,7 +77,7 @@ type Param
 		ny     = 50
 		nT     = 6
 		a_high = 50.0
-		a_low  = 1e-6
+		a_low  = 0.0
 		nD     = 2
 
 		cfloor = 0.001
@@ -93,11 +95,12 @@ type Param
 		eps_z = 1
 
 		dorefine=true
+		printdebug=false
 
-		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,nD,cfloor,alpha,mu,sigma,rho_z,eps_z,dorefine)
+		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,nD,cfloor,alpha,mu,sigma,rho_z,eps_z,dorefine,printdebug)
 	end
 
-	function Param(mu::Float64)
+	function Param(;mu=1)
 
 
 		gamma                 = 2.0
@@ -308,9 +311,25 @@ end
 
 type Envelope
 	cond       :: Dict{Int,Vector{Float64}} 	# dict of functions conditional on discrete choice
-	cond_vzero :: Dict{Int,Float64} 	# dict of expected value of saving zero by discrete choice
-	vzero      :: Float64 	# dict of expected value of saving zero
-	env        :: Vector{Float64}	# actual envelope over discrete choices
+	# cond_vzero :: Dict{Int,Float64} 	# dict of expected value of saving zero by discrete choice
+	# vzero      :: Float64 				# expected value of saving zero on envelope
+	env        :: Vector{Float64}		# actual envelope over discrete choices
+	function Envelope()
+		this = new()
+		this.cond = [id => Float64[] for id in 1:2 ]
+		# this.cond_vzero = [id => 0.0 for id in 1:2 ]
+		# this.vzero = 0.0
+		this.env = Float64[]
+		return this
+	end
+	function Envelope(cond,cond_vzero,vzero,env)
+		this = new()
+		this.cond = copy(cond)
+		# this.cond_vzero = copy(cond_vzero)
+		# this.vzero = copy(vzero)
+		this.env = copy(env)
+		return this
+	end
 end
 
 function cond(e::Envelope,which::Int)
@@ -323,16 +342,22 @@ function env(e::Dict{Int,Envelope},it::Int)
 	e[it].env
 end
 function set!(e::Dict{Int,Envelope},it::Int,v::Vector{Float64})
-	e[it].env = v
+	e[it].env = deepcopy(v)
 end
 function set!(e::Dict{Int,Envelope},it::Int,which::Int,v::Vector{Float64})
-	e[it].cond[which] = v
+	e[it].cond[which] = deepcopy(v)
+end
+function setvzero!(e::Dict{Int,Envelope},it::Int,which::Int,ind::Union(Int64,UnitRange),v::Float64)
+	e[it].cond[which][ind] = v
+end
+function setvzero!(e::Dict{Int,Envelope},it::Int,which::Int,ind::UnitRange,v::Vector{Float64})
+	e[it].cond[which][ind] = v
 end
 function vzero(e::Dict{Int,Envelope},it::Int,which::Int)
-	e[it].cond_vzero[which]
+	e[it].cond[which][1]
 end
 function vzero(e::Dict{Int,Envelope},it::Int)
-	e[it].vzero
+	e[it].env[1]
 end
 
 @doc "get a matrix of conditional values by period" ->
@@ -347,7 +372,7 @@ end
 @doc "get a matrix of all values conditional on dchoice" ->
 function mat(e::Dict{Int,Envelope},which)
 	v = e[1].cond[which]
-	for it in 2:length(e)
+	for it in 2:(length(e)-1)
 		v = hcat(v,e[it].cond[which])
 	end
 	v
@@ -356,7 +381,7 @@ end
 @doc "get a matrix of all envelope values" ->
 function mat(e::Dict{Int,Envelope})
 	v = env(e,1)
-	for it in 1:length(e)
+	for it in 1:(length(e)-1)
 		v = hcat(v,env(e,it))
 	end
 	v
@@ -402,18 +427,18 @@ type iidDModel <: Model
 	@doc "Constructor for iid Dchoice Model" ->
 	function iidDModel(p::Param)
 
-		avec          = linspace(0.0,p.a_high,p.na)
-		# nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
-		nodes,weights = quadpoints(p.ny,0,1)  # from FastGaussQuadrature
-		N = Normal(0,1)
-		nodes = quantile(N,nodes)
+		avec          = scaleGrid(0.0,p.a_high,p.na,2)
+		nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
+		# nodes,weights = quadpoints(p.ny,0,1)  # from FastGaussQuadrature
+		# N = Normal(0,1)
+		# nodes = quantile(N,nodes)
 
 		# for y ~ N(mu,sigma), integrate y with 
 		# http://en.wikipedia.org/wiki/Gauss-Hermite_quadrature
-		# yvec = sqrt(2.0) * p.sigma .* nodes .+ p.mu
-		yvec = nodes * p.sigma
-		# ywgt = weights .* pi^(-0.5)
-		ywgt = weights
+		yvec = sqrt(2.0) * p.sigma .* nodes .+ p.mu
+		# yvec = nodes * p.sigma
+		ywgt = weights .* pi^(-0.5)
+		# ywgt = weights
 
 		# precompute next period's cash on hand.
 		# (na,ny,nD)
@@ -424,9 +449,10 @@ type iidDModel <: Model
 		ev = zeros(p.na,p.ny)
 
 		# dicts
-		m = [it => Envelope([id => zeros(p.na) for id in 1:2],[id => 0.0 for id in 1:2], 0.0, zeros(p.na)) for it in 1:p.nT]
-		v = [it => Envelope([id => zeros(p.na) for id in 1:2],[id => 0.0 for id in 1:2], 0.0, zeros(p.na)) for it in 1:p.nT]
-		c = [it => Envelope([id => zeros(p.na) for id in 1:2],[id => 0.0 for id in 1:2], 0.0, zeros(p.na)) for it in 1:p.nT]
+		# m = [it => Envelope([id => zeros(p.na) for id in 1:2],[id => 0.0 for id in 1:2], 0.0, zeros(p.na)) for it in 1:p.nT]
+		m = [it => Envelope() for it in 1:p.nT]
+		v = [it => Envelope() for it in 1:p.nT]
+		c = [it => Envelope() for it in 1:p.nT]
 		dchoice = [it => ["d" => zeros(Int,p.na), "Vzero" => 0.0, "threshold" => 0.0] for it=1:p.nT]
 
 		return new(avec,yvec,ywgt,m1,c1,ev,m,v,c,dchoice)

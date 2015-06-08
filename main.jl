@@ -6,7 +6,7 @@ cd("$home/git/EGM/ConsProb.jl/")
 
 include("src/ConsProb.jl")
 x = ConsProb.dchoice();
-p  = ConsProb.Param()
+p  = ConsProb.Param(1.0)
 m  = ConsProb.iidDModel(p)
 ConsProb.EGM!(m,p)
 ConsProb.plots(m,p)

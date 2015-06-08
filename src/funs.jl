@@ -14,7 +14,7 @@ end
 
 function dchoice()
 
-	p  = ConsProb.Param()
+	p  = ConsProb.Param(1.0)
 	m  = ConsProb.iidDModel(p);
 	ConsProb.EGM!(m,p);
 	ConsProb.plots(m,p)
@@ -66,7 +66,7 @@ function runall()
 	# ================
 
 	d2 = Dict{String,Model}()
-	p = Param(10.0)
+	p = Param(mu=10.0)
 
 	d2["EGM"] = AR1Model(p)
 	d2["EGM"].toc = @elapsed EGM!(d2["EGM"],p)
@@ -117,11 +117,11 @@ end
 
 # utility with discrete choice
 function u(x::Float64,working::Bool,p::Param)
-	# p.oneover_oneminusgamma * (x^p.oneminusgamma) - p.alpha*working
-	if x < 0
-		println(x)
+	if p.gamma == 1.0
+		log(x) - p.alpha*working
+	else
+		p.oneover_oneminusgamma * (x^p.oneminusgamma) - p.alpha*working
 	end
-	log(x) - p.alpha*working
 end
 function u{T}(x::Array{T},working::Bool,p::Param)
 	n = length(x)
@@ -135,8 +135,11 @@ end
 
 # partial derivative of utility wrt c
 function up(c::Float64,p::Param)
-	# c ^ (p.neg_gamma)
-	1.0 / c 
+	if p.gamma == 1.0
+		1.0 / c 
+	else
+		c ^ (p.neg_gamma)
+	end
 end
 function up(c::Array{Float64,2},p::Param)
 	n = length(c)
@@ -157,8 +160,11 @@ end
 
 # inverse of partial derivative
 function iup(u::Float64,p::Param)
-	# u ^ p.neg_oneover_gamma
-	1.0 / u
+	if p.gamma == 1.0
+		1.0 / u
+	else
+		u ^ p.neg_oneover_gamma
+	end
 end
 function iup(u::Array{Float64},p::Param)
 	n = length(u)
@@ -178,6 +184,13 @@ returns income as function of deterministic age profile + shock. Assume that it=
 function income(it::Int,shock::Float64)
 	age = it + 19
 	exp( 1.5 + age*0.04 - 0.0004*(age^2) + shock)
+end
+function income(it::Int,shock::Array{Float64})
+	x = similar(shock)
+	for i=1:length(x)
+		x[i] = income(it,shock[i])
+	end
+	return x
 end
 
 
@@ -678,14 +691,14 @@ function quadpoints(n,lbnd,ubnd)
    x2  = ubnd
    x1  = lbnd
    x   = zeros(n)
-   w   = x
+   w   = zeros(n)
    EPS = 3.e-14
    m   = floor((n+1)/2)
    xm  = (x2+x1)/2
    xl  = (x2-x1)/2
    i = 1 
    z1 = 1.e99
-   pp = 0.0
+   pp = p1 = p2 = p3 = z = 0.0
    while (i <= m)
 	   z  = cos(pi*(i-0.25)/(n+0.5))
 	   while (abs(z-z1)>EPS) 
@@ -693,8 +706,8 @@ function quadpoints(n,lbnd,ubnd)
 	       p2 = 0
 	       j=1 
 	       while (j <= n)
-				 p3 = p2
-				 p2 = p1
+				 p3 = copy(p2)
+				 p2 = copy(p1)
 				 p1 = ((2*j-1)*z*p2-(j-1)*p3)/j
 		         j=j+1 
 	       end 

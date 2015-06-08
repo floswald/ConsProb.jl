@@ -80,7 +80,7 @@ function plots(d::Dict,p::Param)
 			end
 			ax[:grid]()
 			ax[:set_ylim]([0,30])
-			ax[:set_xlim]([0,60])
+			ax[:set_xlim]([0,30])
 			# plot(ylim(),ylim(),color="black")
 			ax[:set_title]("$k: $(round(v.toc,4)) secs")
 			ax[:legend](loc="lower right")
@@ -310,45 +310,59 @@ end
 
 
 function plots(m::iidDModel,p::Param)
+	lwi = 1.5
+	d_vf = plt.figure(figsize=(10,7))
+	for j in 6:-1:1
+		ax = plt.subplot(2,3,6-j+1)
+		ax[:set_title]("Period $j")
+		# working
+		ax[:plot](cond(m.m,j,2)[2:end],cond(m.v,j,2)[2:end],color="black",lw=lwi)
+		# analytic part
+		x = linspace(p.cfloor,cond(m.m,j,2)[2],50)
+		ax[:plot](x,map(z -> u(z,true,p) + p.beta * vzero(m.v,j,2), x),label="working",color="black",lw=lwi)
 
+		# retired
+		ax[:plot](cond(m.m,j,1)[2:end],cond(m.v,j,1)[2:end],label="retired",color="red",lw=lwi)
+		# analytic part
+		x = linspace(p.cfloor,cond(m.m,j,1)[2],50)
+		ax[:plot](x,map(z -> u(z,false,p) + p.beta * vzero(m.v,j,1), x),color="red",lw=lwi)
+		ax[:set_xlim]([0,p.a_high])
+		ax[:set_ylim]([-10,15])
+		ax[:legend](loc="lower right")
+		ax[:grid]()
+	end
+	d_vf[:suptitle]("Value functions for Retirement vs Working")
+
+	cons = plt.figure(figsize=(7,7))
     jet = ColorMap("jet")[:__call__] # get a color map function
-	fig, axes = plt.subplots(1,2,figsize=(10,5))
-
-	ax = axes[1]
-	m1 = ConsProb.mat(m.m,1)
-	v1 = ConsProb.mat(m.v,1)
-	m2 = ConsProb.mat(m.m,2)
-	v2 = ConsProb.mat(m.v,2)
-	ax[:plot](m1[:,1],v1[:,1],color=jet(0),lw=2,alpha=0.6,label="period 1, d=1")
-	ax[:plot](m1[:,p.nT],v1[:,p.nT],color="black",lw=2,alpha=0.6,label="period $(p.nT), d=1")
-	ax[:plot](m2[:,1],v2[:,1],color=jet(0),lw=2,alpha=0.6,label="period 1, d=2",linestyle="dashed")
-	ax[:plot](m2[:,p.nT],v2[:,p.nT],color="black",lw=2,alpha=0.6,label="period $(p.nT), d=2",linestyle="dashed")
+    plot(env(m.m,1),env(m.c,1),color="blue",lw=lwi,label="t=1")
 	for it in 2:(p.nT-1)
-		ax[:plot](m1[:,it],v1[:,it],color=jet(it/(p.nT)),lw=2,alpha=0.6,label="period $it")
-		ax[:plot](m2[:,it],v2[:,it],color=jet(it/(p.nT)),lw=2,alpha=0.6,linestyle="dashed")
+	    plot(env(m.m,it),env(m.c,it),color=jet(it/(p.nT)),lw=lwi,label="t=$it")
 	end
-	ax[:grid]()
-	ax[:legend](loc="lower right")
-	ax[:set_ylim]([-1,0.1])
-	ax[:set_xlim]([0,p.a_high])
-	ax[:set_title]("value functions")
+    plot(env(m.m,p.nT),env(m.c,p.nT),color="black",lw=lwi,label="t=$(p.nT)")
+	xlim((0,50))
+	ylim(xlim())
+	title("optimal consumption")
+	legend(loc="upper left")
+	xlabel("Cash on hand")
+	ylabel("Consumption")
+	grid()
 
-	ax = axes[2]
-	v1 = ConsProb.mat(m.c,1)
-	v2 = ConsProb.mat(m.c,2)
-	ax[:plot](m1[:,1],v1[:,1],color=jet(0),lw=2,alpha=0.6,label="period 1, d=1")
-	ax[:plot](m1[:,p.nT],v1[:,p.nT],color="black",lw=2,alpha=0.6,label="period $(p.nT), d=1")
-	ax[:plot](m2[:,1],v2[:,1],color=jet(0),lw=2,alpha=0.6,label="period 1, d=2",linestyle="dashed")
-	ax[:plot](m2[:,p.nT],v2[:,p.nT],color="black",lw=2,alpha=0.6,label="period $(p.nT), d=2",linestyle="dashed")
-	for it in 2:(p.nT-1)
-		ax[:plot](m1[:,it],v1[:,it],color=jet(it/(p.nT)),lw=2,alpha=0.6)
-		ax[:plot](m2[:,it],v2[:,it],color=jet(it/(p.nT)),lw=2,alpha=0.6,linestyle="dashed")
+	vf = plt.figure(figsize=(7,7))
+    jet = ColorMap("jet")[:__call__] # get a color map function
+	for it in 1:(p.nT)
+	    plot(env(m.m,it)[2:end],env(m.v,it)[2:end],color=jet(it/(p.nT)),lw=lwi,label="t=$it")
+		x = linspace(p.cfloor,env(m.m,it)[2],50)
+		plot(x,map(z -> u(z,true,p) + p.beta * vzero(m.v,it), x),color=jet(it/(p.nT)),lw=lwi)
 	end
-	ax[:grid]()
-	ax[:set_ylim]([0,p.a_high])
-	ax[:set_xlim]([0,p.a_high])
-	ax[:legend](loc="lower right")
-	ax[:set_title]("consumption functions")
-	return fig
+	xlim((0,50))
+	title("Envelopes over discrete Value functions")
+	legend(loc="lower right")
+	xlabel("Cash on hand")
+	ylabel("Value")
+	grid()
+	return (d_vf,cons, vf)
+
+	
 end
 
