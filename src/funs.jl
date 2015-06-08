@@ -15,11 +15,9 @@ end
 function dchoice()
 
 	p  = ConsProb.Param()
-	m  = ConsProb.iidDModel(p)
-	ConsProb.EGM!(m,p)
-	PyPlot.plot(ConsProb.dmat(m.v,1))
-	PyPlot.figure()
-	PyPlot.plot(ConsProb.dmat(m.c,1))
+	m  = ConsProb.iidDModel(p);
+	ConsProb.EGM!(m,p);
+	ConsProb.plots(m,p)
 	return m
 end
 
@@ -119,7 +117,11 @@ end
 
 # utility with discrete choice
 function u(x::Float64,working::Bool,p::Param)
-	p.oneover_oneminusgamma * (x^p.oneminusgamma) - p.alpha*working
+	# p.oneover_oneminusgamma * (x^p.oneminusgamma) - p.alpha*working
+	if x < 0
+		println(x)
+	end
+	log(x) - p.alpha*working
 end
 function u{T}(x::Array{T},working::Bool,p::Param)
 	n = length(x)
@@ -133,7 +135,8 @@ end
 
 # partial derivative of utility wrt c
 function up(c::Float64,p::Param)
-	c ^ (p.neg_gamma)
+	# c ^ (p.neg_gamma)
+	1.0 / c 
 end
 function up(c::Array{Float64,2},p::Param)
 	n = length(c)
@@ -154,7 +157,8 @@ end
 
 # inverse of partial derivative
 function iup(u::Float64,p::Param)
-	u ^ p.neg_oneover_gamma
+	# u ^ p.neg_oneover_gamma
+	1.0 / u
 end
 function iup(u::Array{Float64},p::Param)
 	n = length(u)
@@ -669,5 +673,40 @@ function linearapprox(x::Vector{Float64},y::Vector{Float64},xi::Vector{Float64})
 end
 
 
+function quadpoints(n,lbnd,ubnd)
 
-
+   x2  = ubnd
+   x1  = lbnd
+   x   = zeros(n)
+   w   = x
+   EPS = 3.e-14
+   m   = floor((n+1)/2)
+   xm  = (x2+x1)/2
+   xl  = (x2-x1)/2
+   i = 1 
+   z1 = 1.e99
+   pp = 0.0
+   while (i <= m)
+	   z  = cos(pi*(i-0.25)/(n+0.5))
+	   while (abs(z-z1)>EPS) 
+	       p1 = 1
+	       p2 = 0
+	       j=1 
+	       while (j <= n)
+				 p3 = p2
+				 p2 = p1
+				 p1 = ((2*j-1)*z*p2-(j-1)*p3)/j
+		         j=j+1 
+	       end 
+	       pp = n*(z*p1-p2)/(z*z-1)
+	       z1 = z
+	       z  = z1 - p1/pp
+    	end
+     x[i]     = xm - xl*z
+     x[n+1-i] = xm + xl*z
+     w[i]     = 2*xl/((1-z*z)*pp*pp)
+     w[n+1-i] =w[i]
+     i = i+1
+   end
+   return (x,w)
+end

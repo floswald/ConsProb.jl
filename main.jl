@@ -5,12 +5,11 @@ home = ENV["HOME"]
 cd("$home/git/EGM/ConsProb.jl/")
 
 include("src/ConsProb.jl")
+x = ConsProb.dchoice();
 p  = ConsProb.Param()
 m  = ConsProb.iidDModel(p)
 ConsProb.EGM!(m,p)
 ConsProb.plots(m,p)
-
-
 
 include("test/tfuns.jl")
 
@@ -25,7 +24,6 @@ ConsProb.ylim([-1,2])
 ConsProb.xlim([-1,2])
 
 ConsProb.printplots()
-
 
 m  = ConsProb.iidModel(p,"Euler")
 m  = ConsProb.iidModel(p,"Euler")

@@ -312,13 +312,43 @@ end
 function plots(m::iidDModel,p::Param)
 
     jet = ColorMap("jet")[:__call__] # get a color map function
-	f = figure()
-	plot(m.envelope[1]["m"],m.envelope[1]["v"],color=jet(0),lw=2,alpha=0.6,label="period 1")
-	plot(m.envelope[p.nT]["m"],m.envelope[p.nT]["v"],color="black",lw=2,label="period $(p.nT)")
+	fig, axes = plt.subplots(1,2,figsize=(10,5))
+
+	ax = axes[1]
+	m1 = ConsProb.mat(m.m,1)
+	v1 = ConsProb.mat(m.v,1)
+	m2 = ConsProb.mat(m.m,2)
+	v2 = ConsProb.mat(m.v,2)
+	ax[:plot](m1[:,1],v1[:,1],color=jet(0),lw=2,alpha=0.6,label="period 1, d=1")
+	ax[:plot](m1[:,p.nT],v1[:,p.nT],color="black",lw=2,alpha=0.6,label="period $(p.nT), d=1")
+	ax[:plot](m2[:,1],v2[:,1],color=jet(0),lw=2,alpha=0.6,label="period 1, d=2",linestyle="dashed")
+	ax[:plot](m2[:,p.nT],v2[:,p.nT],color="black",lw=2,alpha=0.6,label="period $(p.nT), d=2",linestyle="dashed")
 	for it in 2:(p.nT-1)
-		x = m.envelope[it]["m"]
-		plot(x,m.envelope[it]["v"],color=jet(it/(p.nT)),lw=2,alpha=0.6)
+		ax[:plot](m1[:,it],v1[:,it],color=jet(it/(p.nT)),lw=2,alpha=0.6,label="period $it")
+		ax[:plot](m2[:,it],v2[:,it],color=jet(it/(p.nT)),lw=2,alpha=0.6,linestyle="dashed")
 	end
-	return f
+	ax[:grid]()
+	ax[:legend](loc="lower right")
+	ax[:set_ylim]([-1,0.1])
+	ax[:set_xlim]([0,p.a_high])
+	ax[:set_title]("value functions")
+
+	ax = axes[2]
+	v1 = ConsProb.mat(m.c,1)
+	v2 = ConsProb.mat(m.c,2)
+	ax[:plot](m1[:,1],v1[:,1],color=jet(0),lw=2,alpha=0.6,label="period 1, d=1")
+	ax[:plot](m1[:,p.nT],v1[:,p.nT],color="black",lw=2,alpha=0.6,label="period $(p.nT), d=1")
+	ax[:plot](m2[:,1],v2[:,1],color=jet(0),lw=2,alpha=0.6,label="period 1, d=2",linestyle="dashed")
+	ax[:plot](m2[:,p.nT],v2[:,p.nT],color="black",lw=2,alpha=0.6,label="period $(p.nT), d=2",linestyle="dashed")
+	for it in 2:(p.nT-1)
+		ax[:plot](m1[:,it],v1[:,it],color=jet(it/(p.nT)),lw=2,alpha=0.6)
+		ax[:plot](m2[:,it],v2[:,it],color=jet(it/(p.nT)),lw=2,alpha=0.6,linestyle="dashed")
+	end
+	ax[:grid]()
+	ax[:set_ylim]([0,p.a_high])
+	ax[:set_xlim]([0,p.a_high])
+	ax[:legend](loc="lower right")
+	ax[:set_title]("consumption functions")
+	return fig
 end
 

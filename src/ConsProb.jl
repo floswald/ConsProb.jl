@@ -5,6 +5,7 @@ module ConsProb
 
 using PyPlot, Roots, Optim, Debug
 using FastGaussQuadrature: gausshermite
+using Distributions: Normal, quantile
 
 # setting up docile documentation
 if VERSION < v"0.4.0-dev"

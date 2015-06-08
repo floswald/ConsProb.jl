@@ -71,28 +71,28 @@ type Param
 		beta                  = 0.95
 		R                     = 1.05
 
-		na     = 200
-		ny     = 10
-		nT     = 8
-		a_high = 300.0
+		na     = 100
+		ny     = 50
+		nT     = 6
+		a_high = 50.0
 		a_low  = 1e-6
 		nD     = 2
 
 		cfloor = 0.001
-		alpha = 0.5
+		alpha = 2.3
 
 		# iid income uncertainty params
 		# mu = 10 	# mean income: 30K
 		# sigma = 1  # sd income
-		mu = 1 	# mean income: 30K
-		sigma = 0.1  # sd income
+		mu = 0 	# mean income: 30K
+		sigma = 0.25  # sd income
 
 		# AR1 income uncertainty
 		# params from Ayiagari
 		rho_z = 0.9
 		eps_z = 1
 
-		dorefine=false
+		dorefine=true
 
 		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,nD,cfloor,alpha,mu,sigma,rho_z,eps_z,dorefine)
 	end
@@ -403,12 +403,17 @@ type iidDModel <: Model
 	function iidDModel(p::Param)
 
 		avec          = linspace(0.0,p.a_high,p.na)
-		nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
+		# nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
+		nodes,weights = quadpoints(p.ny,0,1)  # from FastGaussQuadrature
+		N = Normal(0,1)
+		nodes = quantile(N,nodes)
 
 		# for y ~ N(mu,sigma), integrate y with 
 		# http://en.wikipedia.org/wiki/Gauss-Hermite_quadrature
-		yvec = sqrt(2.0) * p.sigma .* nodes .+ p.mu
-		ywgt = weights .* pi^(-0.5)
+		# yvec = sqrt(2.0) * p.sigma .* nodes .+ p.mu
+		yvec = nodes * p.sigma
+		# ywgt = weights .* pi^(-0.5)
+		ywgt = weights
 
 		# precompute next period's cash on hand.
 		# (na,ny,nD)

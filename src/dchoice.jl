@@ -231,8 +231,8 @@ solved with EGM."
 				if length(i2) == 0
 					# intersection in credit constraint of WORKING
 					# use analytic forms
-					func = (x)->u(x,true,p) + p.beta * vzero(m.v,it,1) - linearapprox(cond(m.m,it,1),cond(m.v,it,1),x)
-					isectm = fzero(func,cond(m.m,it,2)[1])
+					func = (x)->u(x,true,p) + p.beta * vzero(m.v,it,2) - linearapprox(cond(m.m,it,1),cond(m.v,it,1),x)
+					isectm = fzero(func,[p.cfloor,cond(m.m,it,2)[end]])
 					# isectm = fzero(func,m.dpolicy[it][2][1])
 					# why do you use two points here?
 					isectm = vcat(isectm, isectm + 100.0*eps())
