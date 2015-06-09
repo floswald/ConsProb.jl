@@ -243,32 +243,32 @@ end
 
 
 function refine_grids!(m::iidDModel,it::Int,id::Int,p::Param)
-	j = find(cond(m.m,it,id)[2:end] .< cond(m.m,it,id)[1:(end-1)])
+	j = find(condvbound(m.m,it,id)[2:end] .< condvbound(m.m,it,id)[1:(end-1)])
 	# j[1] is last ok element: M_b
 
 	if p.printdebug
 		println("j = $j")
 	end
 	while length(j) > 0
-		j1 = find(cond(m.m,it,id) .< cond(m.m,it,id)[j[1]]) # which grid points are lower than that last ok one
+		j1 = find(condvbound(m.m,it,id) .< condvbound(m.m,it,id)[j[1]]) # which grid points are lower than that last ok one
 		j1 = sum(j1.>j[1])  # number of indices greater than j[1], i.e. gridpoints that SHOULD be greater than m0[j[1]]
 
 		# j1 is the number of points we need to correct
 
 		# interpolate all points inside the fold using part of the grid we know is ok
 		# get interpolated value from non-folded grid
-		folds_on_ok = linearapprox(cond(m.m,it,id)[1:j[1]],cond(m.v,it,id)[1:j[1]],cond(m.m,it,id)[(j[1]+1):(j[1]+j1)])
+		folds_on_ok = linearapprox(condvbound(m.m,it,id)[1:j[1]],condvbound(m.v,it,id)[1:j[1]],condvbound(m.m,it,id)[(j[1]+1):(j[1]+j1)])
 
 		# number of points where value is below true value on the fold
-		j2 = sum(cond(m.v,it,id)[(j[1]+1):(j[1]+j1)] .< folds_on_ok)
+		j2 = sum(condvbound(m.v,it,id)[(j[1]+1):(j[1]+j1)] .< folds_on_ok)
 		# j2 is the number of points we want to drop
 
-		j3 = find(cond(m.m,it,id) .> cond(m.m,it,id)[j[1]+j2+1])	 # indices of gridpoints greater than the point where values are lower than points on v
+		j3 = find(condvbound(m.m,it,id) .> condvbound(m.m,it,id)[j[1]+j2+1])	 # indices of gridpoints greater than the point where values are lower than points on v
 		j3 = sum(j3 .<= j[1]) # number of those lower than M_b
 		#
 
 		if p.printdebug
-			println("env2 (it=$it,id=$id), point $j: m=$(cond(m.m,it,id)[j[1]]), v=$(cond(m.v,it,id)[j[1]]).")
+			println("env2 (it=$it,id=$id), point $j: m=$(condvbound(m.m,it,id)[j[1]]), v=$(condvbound(m.v,it,id)[j[1]]).")
 			println("# $j1 in fold over")
 			println("# $j2 of points to be skipped after start of fold over")
 			println("# $j3 of points to be skipped before start of fold over")
@@ -280,7 +280,7 @@ function refine_grids!(m::iidDModel,it::Int,id::Int,p::Param)
 		deleteat!(m.c[it].cond[id],(j[1]-j3+1):(j[1]+j2))
 
 		# search for next fold over region
-		j = find(cond(m.m,it,id)[2:end] .< cond(m.m,it,id)[1:(end-1)])  
+		j = find(condvbound(m.m,it,id)[2:end] .< condvbound(m.m,it,id)[1:(end-1)])  
 	end
 end
 
