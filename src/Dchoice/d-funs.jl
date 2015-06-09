@@ -48,7 +48,7 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 			# next period's endogenous grid and cons function
 			# on the envelope!
 			# this must include the lower bound on both m and c
-			m1 = envvbound(m.m,it+1)
+			m1 = envvbound(m.m,it+1)  # p.na + 1
 			c1 = envvbound(m.c,it+1) 
 
 			# prepend next period's optimal policies with a zero to capture credit constraint
@@ -185,7 +185,7 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		ix1 = find(mask1)
 		ix2 = find(mask2)   # left poitn of working grid before intersection
 		if length(ix1) > 0
-			i1 = ix1[1]
+			i1 = ix1[1]-1
 		end
 		if length(ix2)>0 
 			i2 = ix2[end]
@@ -201,17 +201,19 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 			isectv = Float64[]
 		else
 			if length(ix2) == 0
+				println("in length(ix2)==0")
 				# intersection in credit constraint of WORKING
 				# use analytic forms
 				func = (x)->u(x,true,p) + p.beta * get_vbound(m.v,it,2) - linearapprox(cond(m.m,it,1),cond(m.v,it,1),x)
 				isectm = fzero(func,[p.cfloor,cond(m.m,it,2)[end]])
-				# isectm = fzero(func,cond(m.m,it,2)[2])
+				# isectm = fzero(func,cond(m.m,it,2)[1])
 				# isectm = fzero(func,m.dpolicy[it][2][1])
 				# why do you use two points here?
 				isectm = vcat(isectm, isectm + 100.0*eps())
 				isectv = vcat(u(max(p.cfloor,isectm[1]),true,p) + p.beta*get_vbound(m.v,it,2), 
 					          u(max(p.cfloor,isectm[2]),true,p) + p.beta*get_vbound(m.v,it,2))
 			else
+				println("in else")
 				# just get the linear segment connecting 
 				a1 = (condvbound(m.v,it,1)[i1+1] - condvbound(m.v,it,1)[i1]) / (condvbound(m.m,it,1)[i1+1] - condvbound(m.m,it,1)[i1])
 				a2 = (condvbound(m.v,it,2)[i2+1] - condvbound(m.v,it,2)[i2]) / (condvbound(m.m,it,2)[i2+1] - condvbound(m.m,it,2)[i2])
@@ -234,36 +236,39 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		end
 
 		# combine points from both grids into envelope
-		set!(m.m,it,vcat(get_vbound(m.m,it,2), cond(m.m,it,2)[mask2], isectm, cond(m.m,it,1)[mask1]))
-		set!(m.c,it,vcat(get_vbound(m.c,it,2), cond(m.c,it,2)[mask2], isectc, cond(m.c,it,1)[mask1]))
-		set!(m.v,it,vcat(get_vbound(m.v,it,2), cond(m.v,it,2)[mask2], isectv, cond(m.v,it,1)[mask1]))
+		set!(m.m,it,vcat(cond(m.m,it,2)[mask2], isectm, cond(m.m,it,1)[mask1]))
+		set!(m.c,it,vcat(cond(m.c,it,2)[mask2], isectc, cond(m.c,it,1)[mask1]))
+		set!(m.v,it,vcat(cond(m.v,it,2)[mask2], isectv, cond(m.v,it,1)[mask1]))
 		set_vbound!(m.v,it,get_vbound(m.v,it,2))
+		println("cond(m.v,it,2)[mask2] = $(cond(m.v,it,2)[mask2])")
+		println("env(m.v,it) = $(env(m.v,it))")
+
 	end
 end
 
 
 function refine_grids!(m::iidDModel,it::Int,id::Int,p::Param)
-	j = find(condvbound(m.m,it,id)[2:end] .< condvbound(m.m,it,id)[1:(end-1)])
+	j = find(cond(m.m,it,id)[2:end] .< cond(m.m,it,id)[1:(end-1)])
 	# j[1] is last ok element: M_b
 
 	if p.printdebug
 		println("j = $j")
 	end
 	while length(j) > 0
-		j1 = find(condvbound(m.m,it,id) .< condvbound(m.m,it,id)[j[1]]) # which grid points are lower than that last ok one
+		j1 = find(cond(m.m,it,id) .< cond(m.m,it,id)[j[1]]) # which grid points are lower than that last ok one
 		j1 = sum(j1.>j[1])  # number of indices greater than j[1], i.e. gridpoints that SHOULD be greater than m0[j[1]]
 
 		# j1 is the number of points we need to correct
 
 		# interpolate all points inside the fold using part of the grid we know is ok
 		# get interpolated value from non-folded grid
-		folds_on_ok = linearapprox(condvbound(m.m,it,id)[1:j[1]],condvbound(m.v,it,id)[1:j[1]],condvbound(m.m,it,id)[(j[1]+1):(j[1]+j1)])
+		folds_on_ok = linearapprox(cond(m.m,it,id)[1:j[1]],cond(m.v,it,id)[1:j[1]],cond(m.m,it,id)[(j[1]+1):(j[1]+j1)])
 
 		# number of points where value is below true value on the fold
-		j2 = sum(condvbound(m.v,it,id)[(j[1]+1):(j[1]+j1)] .< folds_on_ok)
+		j2 = sum(cond(m.v,it,id)[(j[1]+1):(j[1]+j1)] .< folds_on_ok)
 		# j2 is the number of points we want to drop
 
-		j3 = find(condvbound(m.m,it,id) .> condvbound(m.m,it,id)[j[1]+j2+1])	 # indices of gridpoints greater than the point where values are lower than points on v
+		j3 = find(cond(m.m,it,id) .> cond(m.m,it,id)[j[1]+j2+1])	 # indices of gridpoints greater than the point where values are lower than points on v
 		j3 = sum(j3 .<= j[1]) # number of those lower than M_b
 		#
 
@@ -280,7 +285,7 @@ function refine_grids!(m::iidDModel,it::Int,id::Int,p::Param)
 		deleteat!(m.c[it].cond[id],(j[1]-j3+1):(j[1]+j2))
 
 		# search for next fold over region
-		j = find(condvbound(m.m,it,id)[2:end] .< condvbound(m.m,it,id)[1:(end-1)])  
+		j = find(cond(m.m,it,id)[2:end] .< cond(m.m,it,id)[1:(end-1)])  
 	end
 end
 
@@ -289,6 +294,6 @@ function run()
 	p  = Param(1.0)
 	m  = iidDModel(p);
 	EGM!(m,p);
-	x = plots(m,p)
+	# x = plots(m,p)
 	return m
 end

@@ -218,7 +218,8 @@ type iidDModel <: Model
 
 	function iidDModel(p::Param)
 
-		avec          = scaleGrid(0.0,p.a_high,p.na,2)
+		# avec          = scaleGrid(0.0,p.a_high,p.na,2)
+		avec          = linspace(0.0,p.a_high,p.na)
 		nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
 		# nodes,weights = quadpoints(p.ny,0,1)  # from FastGaussQuadrature
 		# N = Normal(0,1)

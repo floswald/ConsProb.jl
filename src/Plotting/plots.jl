@@ -372,7 +372,7 @@ function plots(m::iidDModel,p::Param)
 	for it in 1:(p.nT)
 	    plot(env(m.m,it),env(m.v,it),color=jet(it/(p.nT)),lw=lwi,label="t=$it")
 		x = linspace(p.cfloor,env(m.m,it)[2],50)
-		plot(x,map(z -> u(z,true,p) + p.beta * vzero(m.v,it), x),color=jet(it/(p.nT)),lw=lwi)
+		plot(x,map(z -> u(z,true,p) + p.beta * get_vbound(m.v,it), x),color=jet(it/(p.nT)),lw=lwi)
 	end
 	xlim((0,50))
 	title("Envelopes over discrete Value functions")

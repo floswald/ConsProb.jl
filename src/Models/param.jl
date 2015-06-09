@@ -93,7 +93,7 @@ type Param
 		eps_z = 1
 
 		dorefine=true
-		printdebug=false
+		printdebug=true
 
 		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,nD,cfloor,alpha,mu,sigma,rho_z,eps_z,dorefine,printdebug)
 	end
