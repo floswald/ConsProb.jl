@@ -325,21 +325,25 @@ function plots(m::iidDModel,p::Param)
 	for j in 6:-1:1
 		if j==6
 			ax = ax1
+			x = linspace(p.cfloor,cond(m.m,j,2)[2],50)
+			ax[:plot](x,map(z -> u(z,true,p) + p.beta * get_vbound(m.v,j,2), x),label="working",color="black",lw=lwi)
+			x = linspace(p.cfloor,cond(m.m,j,1)[2],50)
+			ax[:plot](x,map(z -> u(z,false,p) + p.beta * get_vbound(m.v,j,1), x),label="retired",color="red",lw=lwi)
 		else
 			ax = plt.subplot(2,3,6-j+1,sharey=ax1)
+			# working
+			ax[:plot](cond(m.m,j,2),cond(m.v,j,2),color="black",lw=lwi)
+			# analytic part
+			x = linspace(p.cfloor,cond(m.m,j,2)[2],50)
+			ax[:plot](x,map(z -> u(z,true,p) + p.beta * get_vbound(m.v,j,2), x),label="working",color="black",lw=lwi)
+
+			# retired
+			ax[:plot](cond(m.m,j,1),cond(m.v,j,1),label="retired",color="red",lw=lwi)
+			# analytic part
+			x = linspace(p.cfloor,cond(m.m,j,1)[2],50)
+			ax[:plot](x,map(z -> u(z,false,p) + p.beta * get_vbound(m.v,j,1), x),color="red",lw=lwi)
 		end
 		ax[:set_title]("Period $j")
-		# working
-		ax[:plot](cond(m.m,j,2)[2:end],cond(m.v,j,2)[2:end],color="black",lw=lwi)
-		# analytic part
-		x = linspace(p.cfloor,cond(m.m,j,2)[2],50)
-		ax[:plot](x,map(z -> u(z,true,p) + p.beta * vzero(m.v,j,2), x),label="working",color="black",lw=lwi)
-
-		# retired
-		ax[:plot](cond(m.m,j,1)[2:end],cond(m.v,j,1)[2:end],label="retired",color="red",lw=lwi)
-		# analytic part
-		x = linspace(p.cfloor,cond(m.m,j,1)[2],50)
-		ax[:plot](x,map(z -> u(z,false,p) + p.beta * vzero(m.v,j,1), x),color="red",lw=lwi)
 		ax[:set_xlim]([0,p.a_high])
 		ax[:set_ylim]([-10,15])
 		ax[:legend](loc="lower right")
@@ -366,7 +370,7 @@ function plots(m::iidDModel,p::Param)
 	# envelope over value functions
 	vf = plt.figure(figsize=(7,7))
 	for it in 1:(p.nT)
-	    plot(env(m.m,it)[2:end],env(m.v,it)[2:end],color=jet(it/(p.nT)),lw=lwi,label="t=$it")
+	    plot(env(m.m,it),env(m.v,it),color=jet(it/(p.nT)),lw=lwi,label="t=$it")
 		x = linspace(p.cfloor,env(m.m,it)[2],50)
 		plot(x,map(z -> u(z,true,p) + p.beta * vzero(m.v,it), x),color=jet(it/(p.nT)),lw=lwi)
 	end

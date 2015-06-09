@@ -31,14 +31,15 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 			# final period: consume everyting.
 			set!(m.m,it,id,vcat(0.0,p.a_high))
 			set!(m.c,it,id,vcat(0.0,p.a_high))
-			set!(m.v,it,id,vcat(0.0, NaN))
+			set_vbound!(m.v,it,id,0.0)
+			set_vbound!(m.v,it,0.0)
 			# v0 = u(c0,working,p) + p.beta * 0.0
 		else
 			# previous periods
-			# first elements: 0 and NaN
-			push!(m.c[it].cond[id],0.0)
-			push!(m.m[it].cond[id],0.0)
-			push!(m.v[it].cond[id],NaN)  # element # 1 of value function is value of saving zero
+			# set values on lower bound
+			set_vbound!(m.c,it,id,0.0)
+			set_vbound!(m.m,it,id,0.0)
+			set_vbound!(m.v,it,id,NaN)
 
 			# precomputed next period's cash on hand on all income states
 			# what's next period's cash on hand given you work/not today?
@@ -47,8 +48,8 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 			# next period's endogenous grid and cons function
 			# on the envelope!
 			# this must include the lower bound on both m and c
-			m1 = env(m.m,it+1)
-			c1 = env(m.c,it+1) 
+			m1 = envvbound(m.m,it+1)
+			c1 = envvbound(m.c,it+1) 
 
 			# prepend next period's optimal policies with a zero to capture credit constraint
 			for ia in 1:p.na
@@ -63,17 +64,17 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 			Eu = up(m.c1,p) * m.ywgt
 			rhs = p.R * p.beta .* Eu
 
-			# get optimal consumption today from euler equation: invert marginal utility
-			append!(m.c[it].cond[id],iup(Eu,p))
-			# get endogenous grid today
-			append!(m.m[it].cond[id],cond(m.c,it,id)[2:end] .+ m.avec)
+			# set optimal consumption today from euler equation: invert marginal utility
+			set!(m.c,it,id,iup(Eu,p))
+			# set endogenous grid today
+			set!(m.m,it,id,cond(m.c,it,id) .+ m.avec)
 
 
 			# compute value function
 			# ======================
 
-			vv   = env(m.v,it+1)[2:end]
-			tmpx = env(m.m,it+1)[2:end]
+			vv   = env(m.v,it+1)
+			tmpx = env(m.m,it+1)
 
 			# expected value function (na,ny)
 			fill!(m.ev,NaN)
@@ -81,7 +82,7 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 			if it==(p.nT-1)
 				mask = trues(size(mm1))
 			else
-				mask = mm1 .< env(m.m,it+1)[2]	# wherever potential next period's cash on hand (m.m1) is less than the second lowest grid point of the endogenous grid next period (lowest is 0), the agent will be credit constrained and will be saving zero 
+				mask = mm1 .< env(m.m,it+1)[1]	# wherever potential next period's cash on hand (m.m1) is less than the second lowest grid point of the endogenous grid next period (lowest is 0), the agent will be credit constrained and will be saving zero 
 				# in that region, can use analytic form of v(work)
 			end
 
@@ -93,11 +94,11 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 					idx = ia+p.na*(iy-1)
 					# if credit constrained and next period is last: will choose retire and zero savings!
 					if it==(p.nT-1)  # retired next period
-						m.ev[idx] = u(max(mm1[idx],p.cfloor),false,p) + p.beta * vzero(m.v,it+1)
+						m.ev[idx] = u(max(mm1[idx],p.cfloor),false,p) + p.beta * get_vbound(m.v,it+1)
 					else
 						# if credit constrained and next period is not last: will choose work and zero savings!
 						if mask[idx]
-							m.ev[idx] = u(max(mm1[idx],p.cfloor),true,p) + p.beta * vzero(m.v,it+1)
+							m.ev[idx] = u(max(mm1[idx],p.cfloor),true,p) + p.beta * get_vbound(m.v,it+1)
 						else
 						# if not credit constrained: will save!
 							m.ev[idx] = linearapprox(tmpx,vv,mm1[idx])
@@ -107,12 +108,12 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 			end
 			# remember that mm1 is next period's cash on hand if TODAY discrete choice is id (e.g. work)
 			ev = m.ev * m.ywgt
-			# set vzero
-			m.v[it].cond[id] = [ev[1]]
-			# set rest of grid points
-			append!(m.v[it].cond[id], u(cond(m.c,it,id)[2:end],working,p) + p.beta * ev)
+			# set value on bound
+			set_vbound!(m.v,it,id,ev[1])
+			# set remaining grid points of value function
+			set!(m.v,it,id, u(cond(m.c,it,id),working,p) + p.beta * ev)
 
-			# however, at this point there may be a problem in m.dpolicy[it][id]["v"] because of secondary kinks coming in from m.envelope[it+1]["v"]. Will now find wiggles where grid folds back onto itself.
+			# however, at this point there may be a problem in cond(m.v,it,id) because of secondary kinks coming in from env(m.v,it+1). Will now find wiggles where grid folds back onto itself.
 
 			if p.dorefinements
 
@@ -130,7 +131,7 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		# and consume everything
 		set!(m.m,it,vcat(0.0,p.a_high))
 		set!(m.c,it,vcat(0.0,p.a_high))
-		set!(m.v,it,vcat(0.0 , NaN))
+		set_vbound!(m.v,it,0.0 )
 
 	else
 
@@ -150,23 +151,21 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		# `mask` covers up grid points where points of RETIRED grid 
 		# fall into the credit constraint of working
 		# in that region, we can use the analytic form of v(work)
-		mask = cond(m.m,it,1) .< cond(m.m,it,2)[2]
-		mask[1] = false 	# skip the first point (with special value vf(1)
+		mask = cond(m.m,it,1) .< cond(m.m,it,2)[1]
 
 		# mask1: indicator for where retirement is optimal
 		# add indicators in credit constrained region
 		# here is the retirment value better than work
 		# v(work) is analytic here
-		mask1 = vcat(false, cond(m.v,it,1)[mask] .> u(max(p.cfloor,cond(m.m,it,1)[mask]),true,p) + p.beta * cond(m.v,it,2)[1] )
-		# remember that  cond(m.v,it,2)[1] is EV( saving zero )
+		mask1 = vcat(cond(m.v,it,1)[mask] .> u(max(p.cfloor,cond(m.m,it,1)[mask]),true,p) + p.beta * get_vbound(m.v,it,2) )
+		# remember that  get_vbound(m.v,it,2) is EV( saving zero )
 
 		# invert mask, i.e. where RETIRED is NOT in credit constrained region of work
 		# and thus we have to approximate v(work)
 		mask = !mask
-		mask[1] = false # skip the first point (with special value vf(1)
 
 		# where is retiring better than work outside of the credit constrained region? must interpolate.
-		mask1 = vcat( mask1, cond(m.v,it,1)[mask] .> linearapprox(cond(m.m,it,2)[2:end],cond(m.v,it,2)[2:end], cond(m.m,it,1)[mask]) )
+		mask1 = vcat( mask1, cond(m.v,it,1)[mask] .> linearapprox(cond(m.m,it,2),cond(m.v,it,2), cond(m.m,it,1)[mask]) )
 
 		# 2) points from WORKING grid that should appear in envelope
 		# ----------------------------------------------------------
@@ -177,7 +176,7 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		# notice that we interpolate RETIRE on it's endo grid, so that we can get it's values at the endo grid of WORK - i.e. the points that v(work) is defined on!
 
 		# take out first point with special value
-		mask2 = vcat( false, cond(m.v,it,2)[2:end] .> linearapprox(cond(m.m,it,1)[2:end],cond(m.v,it,1)[2:end],cond(m.m,it,2)[2:end])  )
+		mask2 = vcat( cond(m.v,it,2) .> linearapprox(cond(m.m,it,1),cond(m.v,it,1),cond(m.m,it,2))  )
 
 		
 		# 3) find intersection points
@@ -186,7 +185,7 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		ix1 = find(mask1)
 		ix2 = find(mask2)   # left poitn of working grid before intersection
 		if length(ix1) > 0
-			i1 = ix1[1] -1
+			i1 = ix1[1]
 		end
 		if length(ix2)>0 
 			i2 = ix2[end]
@@ -204,20 +203,20 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 			if length(ix2) == 0
 				# intersection in credit constraint of WORKING
 				# use analytic forms
-				func = (x)->u(x,true,p) + p.beta * vzero(m.v,it,2) - linearapprox(cond(m.m,it,1)[2:end],cond(m.v,it,1)[2:end],x)
+				func = (x)->u(x,true,p) + p.beta * get_vbound(m.v,it,2) - linearapprox(cond(m.m,it,1),cond(m.v,it,1),x)
 				isectm = fzero(func,[p.cfloor,cond(m.m,it,2)[end]])
 				# isectm = fzero(func,cond(m.m,it,2)[2])
 				# isectm = fzero(func,m.dpolicy[it][2][1])
 				# why do you use two points here?
 				isectm = vcat(isectm, isectm + 100.0*eps())
-				isectv = vcat(u(max(p.cfloor,isectm[1]),true,p) + p.beta*vzero(m.v,it,2), 
-					          u(max(p.cfloor,isectm[2]),true,p) + p.beta*vzero(m.v,it,2))
+				isectv = vcat(u(max(p.cfloor,isectm[1]),true,p) + p.beta*get_vbound(m.v,it,2), 
+					          u(max(p.cfloor,isectm[2]),true,p) + p.beta*get_vbound(m.v,it,2))
 			else
 				# just get the linear segment connecting 
-				a1 = (cond(m.v,it,1)[i1+1] - cond(m.v,it,1)[i1]) / (cond(m.m,it,1)[i1+1] - cond(m.m,it,1)[i1])
-				a2 = (cond(m.v,it,2)[i2+1] - cond(m.v,it,2)[i2]) / (cond(m.m,it,2)[i2+1] - cond(m.m,it,2)[i2])
-				b1 = cond(m.v,it,1)[i1] - a1*cond(m.m,it,1)[i1]
-				b2 = cond(m.v,it,2)[i2] - a2*cond(m.m,it,2)[i2]
+				a1 = (condvbound(m.v,it,1)[i1+1] - condvbound(m.v,it,1)[i1]) / (condvbound(m.m,it,1)[i1+1] - condvbound(m.m,it,1)[i1])
+				a2 = (condvbound(m.v,it,2)[i2+1] - condvbound(m.v,it,2)[i2]) / (condvbound(m.m,it,2)[i2+1] - condvbound(m.m,it,2)[i2])
+				b1 =  condvbound(m.v,it,1)[i1]   - a1*condvbound(m.m,it,1)[i1]
+				b2 =  condvbound(m.v,it,2)[i2]   - a2*condvbound(m.m,it,2)[i2]
 
 				isectm = vcat((b2-b1)/(a1-a2), 100.0*eps() + (b2-b1)/(a1-a2))
 
@@ -226,7 +225,7 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 			end
 
 			# consumption function from both rules
-			isectc = vcat( linearapprox(cond(m.m,it,2),cond(m.c,it,2),isectm[1]), linearapprox(cond(m.m,it,1),cond(m.c,it,1),isectm[2]) )
+			isectc = vcat( linearapprox(condvbound(m.m,it,2),condvbound(m.c,it,2),isectm[1]), linearapprox(condvbound(m.m,it,1),condvbound(m.c,it,1),isectm[2]) )
 			if p.printdebug
 				println("isectv = $isectv")
 				println("isectm = $isectm")
@@ -235,9 +234,10 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		end
 
 		# combine points from both grids into envelope
-		set!(m.m,it,vcat(0.0, cond(m.m,it,2)[mask2], isectm, cond(m.m,it,1)[mask1]))
-		set!(m.c,it,vcat(0.0, cond(m.c,it,2)[mask2], isectc, cond(m.c,it,1)[mask1]))
-		set!(m.v,it,vcat(vzero(m.v,it,2), cond(m.v,it,2)[mask2], isectv, cond(m.v,it,1)[mask1]))
+		set!(m.m,it,vcat(get_vbound(m.m,it,2), cond(m.m,it,2)[mask2], isectm, cond(m.m,it,1)[mask1]))
+		set!(m.c,it,vcat(get_vbound(m.c,it,2), cond(m.c,it,2)[mask2], isectc, cond(m.c,it,1)[mask1]))
+		set!(m.v,it,vcat(get_vbound(m.v,it,2), cond(m.v,it,2)[mask2], isectv, cond(m.v,it,1)[mask1]))
+		set_vbound!(m.v,it,get_vbound(m.v,it,2))
 	end
 end
 
@@ -282,4 +282,13 @@ function refine_grids!(m::iidDModel,it::Int,id::Int,p::Param)
 		# search for next fold over region
 		j = find(cond(m.m,it,id)[2:end] .< cond(m.m,it,id)[1:(end-1)])  
 	end
+end
+
+
+function run()
+	p  = Param(1.0)
+	m  = iidDModel(p);
+	EGM!(m,p);
+	x = plots(m,p)
+	return m
 end

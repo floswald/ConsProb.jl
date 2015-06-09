@@ -5,13 +5,13 @@ home = ENV["HOME"]
 cd("$home/git/EGM/ConsProb.jl/")
 
 include("src/ConsProb.jl")
+include("test/runtests.jl")
 x = ConsProb.dchoice();
 p  = ConsProb.Param(1.0)
 m  = ConsProb.iidDModel(p)
 ConsProb.EGM!(m,p)
 ConsProb.plots(m,p)
 
-include("test/tfuns.jl")
 
 p  = ConsProb.Param()
 m  = ConsProb.iidDebtModel(p)
