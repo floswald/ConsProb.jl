@@ -9,6 +9,12 @@ using PyPlot
 	    env, envvbound,
 	    get_vbound,u
 
+	import ..Standard:
+		runStd
+
+	import ..Dchoice:
+		runDchoice
+
 
 
 

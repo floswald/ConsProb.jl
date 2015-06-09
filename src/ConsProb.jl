@@ -17,9 +17,9 @@ This module has some different ways to solve a standard life-cycle consumption p
 ConsProb
 
 include(joinpath("Models","Models.jl"))
-include(joinpath("Plotting","Plotting.jl"))
 include(joinpath("Standard","Standard.jl"))
 include(joinpath("Dchoice","Dchoice.jl"))
+include(joinpath("Plotting","Plotting.jl"))
 
 export Dchoice, Standard, Models
 

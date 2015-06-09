@@ -15,12 +15,8 @@ import ..Models:
     env, envvbound,
     set!, set_vbound!,get_vbound
 
-import ..Plotting:
-
-	plots
-
 include("d-funs.jl")
 
-export run
+export runDchoice
 
 end 

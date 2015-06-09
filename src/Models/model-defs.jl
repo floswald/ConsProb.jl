@@ -220,17 +220,17 @@ type iidDModel <: Model
 
 		# avec          = scaleGrid(0.0,p.a_high,p.na,2)
 		avec          = linspace(0.0,p.a_high,p.na)
-		nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
-		# nodes,weights = quadpoints(p.ny,0,1)  # from FastGaussQuadrature
-		# N = Normal(0,1)
-		# nodes = quantile(N,nodes)
+		# nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
+		nodes,weights = quadpoints(p.ny,0,1)  # from FastGaussQuadrature
+		N = Normal(0,1)
+		nodes = quantile(N,nodes)
 
 		# for y ~ N(mu,sigma), integrate y with 
 		# http://en.wikipedia.org/wiki/Gauss-Hermite_quadrature
-		yvec = sqrt(2.0) * p.sigma .* nodes .+ p.mu
-		# yvec = nodes * p.sigma
-		ywgt = weights .* pi^(-0.5)
-		# ywgt = weights
+		# yvec = sqrt(2.0) * p.sigma .* nodes .+ p.mu
+		yvec = nodes * p.sigma
+		# ywgt = weights .* pi^(-0.5)
+		ywgt = weights
 
 		# precompute next period's cash on hand.
 		# (na,ny,nD)

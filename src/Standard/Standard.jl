@@ -11,7 +11,7 @@ module Standard
 		    AR1Model_a,
 		    linearapprox,u,up,iup
 
-	export run,EGM!,Euler!,VFbi!
+	export runStd,EGM!,Euler!,VFbi!
 
 	include("solutions.jl")
 

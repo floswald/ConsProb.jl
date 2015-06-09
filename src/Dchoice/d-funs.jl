@@ -240,8 +240,6 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		set!(m.c,it,vcat(cond(m.c,it,2)[mask2], isectc, cond(m.c,it,1)[mask1]))
 		set!(m.v,it,vcat(cond(m.v,it,2)[mask2], isectv, cond(m.v,it,1)[mask1]))
 		set_vbound!(m.v,it,get_vbound(m.v,it,2))
-		println("cond(m.v,it,2)[mask2] = $(cond(m.v,it,2)[mask2])")
-		println("env(m.v,it) = $(env(m.v,it))")
 
 	end
 end
@@ -273,7 +271,7 @@ function refine_grids!(m::iidDModel,it::Int,id::Int,p::Param)
 		#
 
 		if p.printdebug
-			println("env2 (it=$it,id=$id), point $j: m=$(condvbound(m.m,it,id)[j[1]]), v=$(condvbound(m.v,it,id)[j[1]]).")
+			println("env2 (it=$it,id=$id), point $j: m=$(cond(m.m,it,id)[j[1]]), v=$(cond(m.v,it,id)[j[1]]).")
 			println("# $j1 in fold over")
 			println("# $j2 of points to be skipped after start of fold over")
 			println("# $j3 of points to be skipped before start of fold over")
@@ -290,10 +288,9 @@ function refine_grids!(m::iidDModel,it::Int,id::Int,p::Param)
 end
 
 
-function run()
+function runDchoice()
 	p  = Param(1.0)
 	m  = iidDModel(p);
 	EGM!(m,p);
-	# x = plots(m,p)
 	return m
 end
