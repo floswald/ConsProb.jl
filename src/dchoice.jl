@@ -2,7 +2,7 @@
 
 "iid income uncertainty disrete choice model
 solved with EGM."
-@debug function EGM!(m::iidDModel,p::Param)
+function EGM!(m::iidDModel,p::Param)
 
 	@assert m.avec[1] == 0.0
 
@@ -14,10 +14,7 @@ solved with EGM."
 		# compute optimal consumption and values conditional on discrete choice
 		d_EGM!(m,p,it)
 
-
 		# compute envelopes over conditional functions
-		# ------------------------------------------------
-
 		d_env!(m,p,it)
 
 	end
@@ -49,6 +46,7 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 
 			# next period's endogenous grid and cons function
 			# on the envelope!
+			# this must include the lower bound on both m and c
 			m1 = env(m.m,it+1)
 			c1 = env(m.c,it+1) 
 
@@ -79,11 +77,12 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 
 			# expected value function (na,ny)
 			fill!(m.ev,NaN)
-			# dont: don't interpolate anything.
+			# mask off values where we don't have to interpolate
 			if it==(p.nT-1)
 				mask = trues(size(mm1))
 			else
 				mask = mm1 .< env(m.m,it+1)[2]	# wherever potential next period's cash on hand (m.m1) is less than the second lowest grid point of the endogenous grid next period (lowest is 0), the agent will be credit constrained and will be saving zero 
+				# in that region, can use analytic form of v(work)
 			end
 
 			# again, compute EV directly for the credit constrained cases.
@@ -94,12 +93,7 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 					idx = ia+p.na*(iy-1)
 					# if credit constrained and next period is last: will choose retire and zero savings!
 					if it==(p.nT-1)  # retired next period
-						# if mask[idx] 
-							m.ev[idx] = u(max(mm1[idx],p.cfloor),false,p) + p.beta * vzero(m.v,it+1)
-						# else
-						# # if not credit constrained: will save!
-						# 	m.ev[idx] = linearapprox(tmpx,vv,mm1[idx],1,p.na)
-						# end
+						m.ev[idx] = u(max(mm1[idx],p.cfloor),false,p) + p.beta * vzero(m.v,it+1)
 					else
 						# if credit constrained and next period is not last: will choose work and zero savings!
 						if mask[idx]
@@ -113,8 +107,9 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 			end
 			# remember that mm1 is next period's cash on hand if TODAY discrete choice is id (e.g. work)
 			ev = m.ev * m.ywgt
+			# set vzero
 			m.v[it].cond[id] = [ev[1]]
-			# setvzero!(m.v,it,id,1,ev[1])	# set vzero
+			# set rest of grid points
 			append!(m.v[it].cond[id], u(cond(m.c,it,id)[2:end],working,p) + p.beta * ev)
 
 			# however, at this point there may be a problem in m.dpolicy[it][id]["v"] because of secondary kinks coming in from m.envelope[it+1]["v"]. Will now find wiggles where grid folds back onto itself.
@@ -139,8 +134,7 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 
 	else
 
-		# the endogenous grids in m.dpolicy[it][1]["m"] and 
-		# m.dpolicy[it][1]["m"] are different.
+		# the endogenous grids in for each discrete choice are different.
 		# we must compute an upper envelope over both value functions
 		# in general, the endogenous grids are different for each discrete choice.
 
@@ -153,11 +147,13 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		# 1) points from RETIRED grid that should appear in envelope
 		# ------------------------------------------------
 
-		# mark points of RETIRED grid that fall into the credit constraint
-		# region of WORKING (i.e. smaller than first elt of endog grid)
+		# `mask` covers up grid points where points of RETIRED grid 
+		# fall into the credit constraint of working
+		# in that region, we can use the analytic form of v(work)
 		mask = cond(m.m,it,1) .< cond(m.m,it,2)[2]
-		mask[1] = false
+		mask[1] = false 	# skip the first point (with special value vf(1)
 
+		# mask1: indicator for where retirement is optimal
 		# add indicators in credit constrained region
 		# here is the retirment value better than work
 		# v(work) is analytic here
@@ -165,8 +161,9 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		# remember that  cond(m.v,it,2)[1] is EV( saving zero )
 
 		# invert mask, i.e. where RETIRED is NOT in credit constrained region of work
+		# and thus we have to approximate v(work)
 		mask = !mask
-		mask[1] = false
+		mask[1] = false # skip the first point (with special value vf(1)
 
 		# where is retiring better than work outside of the credit constrained region? must interpolate.
 		mask1 = vcat( mask1, cond(m.v,it,1)[mask] .> linearapprox(cond(m.m,it,2)[2:end],cond(m.v,it,2)[2:end], cond(m.m,it,1)[mask]) )
@@ -175,14 +172,17 @@ function d_env!(m::iidDModel, p::Param, it::Int)
 		# ----------------------------------------------------------
 
 		# where is WORKING better than RETIRE?
+		# could use same approach as above. but credit constrained region for "retire"
+		# is very small, so not worth the effort.
 		# notice that we interpolate RETIRE on it's endo grid, so that we can get it's values at the endo grid of WORK - i.e. the points that v(work) is defined on!
-		# println("m.dpolicy[it][2][v] = $(m.dpolicy[it][2]["v"])")
-		# println("linearapprox = $(linearapprox(m.dpolicy[it][1]["m"],m.dpolicy[it][1]["m"],m.dpolicy[it][2]["m"]))")
 
-		# take out first point as always being optimal to retire
+		# take out first point with special value
 		mask2 = vcat( false, cond(m.v,it,2)[2:end] .> linearapprox(cond(m.m,it,1)[2:end],cond(m.v,it,1)[2:end],cond(m.m,it,2)[2:end])  )
 
-		# find intersection points
+		
+		# 3) find intersection points
+		# ---------------------------
+
 		ix1 = find(mask1)
 		ix2 = find(mask2)   # left poitn of working grid before intersection
 		if length(ix1) > 0

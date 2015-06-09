@@ -57,14 +57,3 @@ r = ConsProb.runall()
 # plot all
 p  = ConsProb.Param()
 f = ConsProb.plots(r,p)
-
-ConsProb.figure(f[1][:number])
-ConsProb.savefig("$home/Dropbox/public/ConsProb.jl/iidCons.png")
-
-
-
-ConsProb.figure("AR1cons")
-ConsProb.savefig("$home/Dropbox/public/ConsProb.jl/AR1cons.png")
-ConsProb.figure("AR1vals")
-ConsProb.savefig("$home/Dropbox/public/ConsProb.jl/AR1vals.png")
-

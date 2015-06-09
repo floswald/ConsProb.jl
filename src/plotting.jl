@@ -245,6 +245,15 @@ function printplots()
 	savefig("$home/Dropbox/public/ConsProb.jl/AR1Cons.png")
 	figure(f[4][:number])
 	savefig("$home/Dropbox/public/ConsProb.jl/AR1Vfun.png")
+
+	d = dchoice()
+	figure(d[1][:number])
+	savefig("$home/Dropbox/public/ConsProb.jl/Dchoice_condV.png")
+	figure(d[2][:number])
+	savefig("$home/Dropbox/public/ConsProb.jl/Dchoice_envC.png")
+	figure(d[3][:number])
+	savefig("$home/Dropbox/public/ConsProb.jl/Dchoice_envV.png")
+
 end
 
 
@@ -312,8 +321,13 @@ end
 function plots(m::iidDModel,p::Param)
 	lwi = 1.5
 	d_vf = plt.figure(figsize=(10,7))
+	ax1 = plt.subplot(2,3,1)
 	for j in 6:-1:1
-		ax = plt.subplot(2,3,6-j+1)
+		if j==6
+			ax = ax1
+		else
+			ax = plt.subplot(2,3,6-j+1,sharey=ax1)
+		end
 		ax[:set_title]("Period $j")
 		# working
 		ax[:plot](cond(m.m,j,2)[2:end],cond(m.v,j,2)[2:end],color="black",lw=lwi)
@@ -333,6 +347,7 @@ function plots(m::iidDModel,p::Param)
 	end
 	d_vf[:suptitle]("Value functions for Retirement vs Working")
 
+	# consumption function
 	cons = plt.figure(figsize=(7,7))
     jet = ColorMap("jet")[:__call__] # get a color map function
     plot(env(m.m,1),env(m.c,1),color="blue",lw=lwi,label="t=1")
@@ -348,8 +363,8 @@ function plots(m::iidDModel,p::Param)
 	ylabel("Consumption")
 	grid()
 
+	# envelope over value functions
 	vf = plt.figure(figsize=(7,7))
-    jet = ColorMap("jet")[:__call__] # get a color map function
 	for it in 1:(p.nT)
 	    plot(env(m.m,it)[2:end],env(m.v,it)[2:end],color=jet(it/(p.nT)),lw=lwi,label="t=$it")
 		x = linspace(p.cfloor,env(m.m,it)[2],50)

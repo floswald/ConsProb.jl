@@ -1,6 +1,13 @@
 
 
-# Consumption / Savings problems in Economics
+# Consumption / Savings / Discrete Choice Problems
+
+1. Standard Lifecycle Savings
+2. Lifecycle Savings with discrete Retirement choice
+3. License
+
+
+## Standard Lifecycle Savings
 
 this repo has `julia` code that computes the solution to a finite time savings problem with iid or AR1 income uncertainty using 3 different methods:
 
@@ -8,24 +15,47 @@ this repo has `julia` code that computes the solution to a finite time savings p
 2. euler equation backward iteration
 3. endogenous grid method
 
-the scope is initially to verify that all give the same solutions and to measure some time differenes. I don't spend a time optimizing the code, so these timings are just for guidance.
+## Lifecycle Savings with discrete Retirement choice
 
-# example
+It also has julia implementation of the discrete choice model which is based on code from [Fedor Iskhakov's](https://github.com/fediskhakov/egdst) github. This implements the method in the [working paper by Iskhakov, Jorgensen, Rust and Schjerning](https://dl.dropboxusercontent.com/u/17240700/sync4web/dcegm.pdf)
 
-this will produce a plot showing the resulting optimal consumption functions for each method and for each uncertainty scenario. Notice that the income uncertainty scenarios are not directly comparable, so you shouldn't expect the figures to be identical.
+## example
 
 ```julia
 using ConsProb
-ConsProb.run()
+r = ConsProb.runall()  # runs EGM, Euler and VFi savings models
+p  = Param()
+f = ConsProb.plots(r,p) # produces plots
+
+ConsProb.dchoice()  # runs and plots EGM for discrete choice
 ```
 
-this will produce the following pictures:
+## Output Savings Models
 
-iid income model, all ages:
+### iid income model, values at all ages:
+[![iidcons](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/iidVfun.png)]()
+
+### iid income model, consumption at all ages:
 [![iidcons](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/iidCons.png)]()
 
-Value functions in AR1 income model, all y-states, age=1:
-[![values](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/AR1vals.png)]()
+### Value functions in AR1 income model, all y-states, age=1:
+[![values](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/AR1Vfun.png)]()
 
-Consumption functions in AR1 income model, all y-states, age=1:
+### Consumption functions in AR1 income model, all y-states, age=1:
 [![ar1cons](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/AR1Cons.png)]()
+
+
+## Output Discrete Choice/Savings Model
+
+### Conditinonal Value functions:
+[![iidcons](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/Dchoice_condV.png)]()
+
+### Envevelope over consumption functions, all ages:
+[![iidcons](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/Dchoice_envC.png)]()
+
+### Envevelope over Value functions, all ages:
+[![iidcons](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/Dchoice_envV.png)]()
+
+## License
+
+Please observe the license when using this code in your work (see file `LICENSE`). Thank you.

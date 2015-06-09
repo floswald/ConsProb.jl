@@ -17,8 +17,8 @@ function dchoice()
 	p  = ConsProb.Param(1.0)
 	m  = ConsProb.iidDModel(p);
 	ConsProb.EGM!(m,p);
-	ConsProb.plots(m,p)
-	return m
+	x = ConsProb.plots(m,p)
+	return x
 end
 
 # run all
@@ -32,7 +32,7 @@ function runall()
 
 	# iid income models
 
-	p = Param()
+	p = Param(mu=10.0)
 
 	# solve by standard euler equation root finding
 	d["Euler"] = iidModel(p)
