@@ -1,10 +1,11 @@
 
 
 
-home = ENV["HOME"]
+	home = ENV["HOME"]
 cd("$home/git/EGM/ConsProb.jl/")
 
 include("src/ConsProb.jl")
+x = ConsProb.Dchoice.run()
 include("test/runtests.jl")
 x = ConsProb.dchoice();
 p  = ConsProb.Param(1.0)
