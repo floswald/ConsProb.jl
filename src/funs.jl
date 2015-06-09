@@ -18,7 +18,7 @@ function dchoice()
 	m  = ConsProb.iidDModel(p);
 	ConsProb.EGM!(m,p);
 	x = ConsProb.plots(m,p)
-	return x
+	return (x,m)
 end
 
 # run all
