@@ -231,30 +231,6 @@ function plots(d::Dict,p::Param)
 	return D
 end
 
-	
-function printplots()
-	home = ENV["HOME"]
-	r = runall()
-	p = Param()
-	f = plots(r,p)
-	figure(f[1][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/iidCons.png")
-	figure(f[2][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/iidVfun.png")
-	figure(f[3][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/AR1Cons.png")
-	figure(f[4][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/AR1Vfun.png")
-
-	d = dchoice()
-	figure(d[1][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/Dchoice_condV.png")
-	figure(d[2][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/Dchoice_envC.png")
-	figure(d[3][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/Dchoice_envV.png")
-
-end
 
 
 function plots(EGM::AR1Model,VF::AR1Model,VF_2::AR1Model_a,p::Param,it::Int)
@@ -320,26 +296,31 @@ end
 
 function plots(m::iidDModel,p::Param)
 	lwi = 1.5
+	lstyle="dashed"
 	d_vf = plt.figure(figsize=(10,7))
 	ax1 = plt.subplot(2,3,1)
 	for j in 6:-1:1
 		if j==6
 			ax = ax1
+			x = linspace(p.cfloor,cond(m.m,j,2)[2],100)
+			ax[:plot](x,map(z -> u(z,true,p) + p.beta * get_vbound(m.v,j,2), x),label="working",color="black",lw=lwi,linestyle=lstyle)
+			x = linspace(p.cfloor,cond(m.m,j,1)[2],100)
+			ax[:plot](x,map(z -> u(z,false,p) + p.beta * get_vbound(m.v,j,1), x),label="retired",color="red",lw=lwi,linestyle=lstyle)
 		else
 			ax = plt.subplot(2,3,6-j+1,sharey=ax1)
+			# working
+			ax[:plot](cond(m.m,j,2),cond(m.v,j,2),color="black",lw=lwi,label="working")
+			# analytic part
+			x = linspace(p.cfloor,cond(m.m,j,2)[1],50)
+			ax[:plot](x,map(z -> u(z,true,p) + p.beta * get_vbound(m.v,j,2), x),color="black",lw=lwi,linestyle=lstyle)
+
+			# retired
+			ax[:plot](cond(m.m,j,1),cond(m.v,j,1),label="retired",color="red",lw=lwi)
+			# analytic part
+			x = linspace(p.cfloor,cond(m.m,j,1)[1],50)
+			ax[:plot](x,map(z -> u(z,false,p) + p.beta * get_vbound(m.v,j,1), x),color="red",lw=lwi,linestyle=lstyle)
 		end
 		ax[:set_title]("Period $j")
-		# working
-		ax[:plot](cond(m.m,j,2)[2:end],cond(m.v,j,2)[2:end],color="black",lw=lwi)
-		# analytic part
-		x = linspace(p.cfloor,cond(m.m,j,2)[2],50)
-		ax[:plot](x,map(z -> u(z,true,p) + p.beta * vzero(m.v,j,2), x),label="working",color="black",lw=lwi)
-
-		# retired
-		ax[:plot](cond(m.m,j,1)[2:end],cond(m.v,j,1)[2:end],label="retired",color="red",lw=lwi)
-		# analytic part
-		x = linspace(p.cfloor,cond(m.m,j,1)[2],50)
-		ax[:plot](x,map(z -> u(z,false,p) + p.beta * vzero(m.v,j,1), x),color="red",lw=lwi)
 		ax[:set_xlim]([0,p.a_high])
 		ax[:set_ylim]([-10,15])
 		ax[:legend](loc="lower right")
@@ -365,11 +346,14 @@ function plots(m::iidDModel,p::Param)
 
 	# envelope over value functions
 	vf = plt.figure(figsize=(7,7))
-	for it in 1:(p.nT)
-	    plot(env(m.m,it)[2:end],env(m.v,it)[2:end],color=jet(it/(p.nT)),lw=lwi,label="t=$it")
-		x = linspace(p.cfloor,env(m.m,it)[2],50)
-		plot(x,map(z -> u(z,true,p) + p.beta * vzero(m.v,it), x),color=jet(it/(p.nT)),lw=lwi)
+	for it in 1:(p.nT-1)
+	    plot(env(m.m,it),env(m.v,it),color=jet(it/(p.nT)),lw=lwi,label="t=$it")
+		x = linspace(p.cfloor,env(m.m,it)[1],50)
+		plot(x,map(z -> u(z,true,p) + p.beta * get_vbound(m.v,it), x),color=jet(it/(p.nT)),lw=lwi,linestyle=lstyle)
 	end
+	it = p.nT
+	x = linspace(p.cfloor,env(m.m,it)[2],200)
+	plot(x,map(z -> u(z,true,p) + p.beta * get_vbound(m.v,it), x),color=jet(it/(p.nT)),lw=lwi,label="t=$it",linestyle=lstyle)
 	xlim((0,50))
 	title("Envelopes over discrete Value functions")
 	legend(loc="lower right")
@@ -381,3 +365,35 @@ function plots(m::iidDModel,p::Param)
 	
 end
 
+
+function printplots(dir=joinpath(ENV["HOME"],"Dropbox/public/ConsProb.jl"))
+	x = doplots()
+	figure(x[1][1][:number])
+	savefig(joinpath(dir,"iidCons.png"))
+	figure(x[1][2][:number])
+	savefig(joinpath(dir,"iidVfun.png"))
+	figure(x[1][3][:number])
+	savefig(joinpath(dir,"AR1Cons.png"))
+	figure(x[1][4][:number])
+	savefig(joinpath(dir,"AR1Vfun.png"))
+
+	d = runDchoice()
+	figure(x[2][1][:number])
+	savefig(joinpath(dir,"Dchoice_condV.png"))
+	figure(x[2][2][:number])
+	savefig(joinpath(dir,"Dchoice_envC.png"))
+	figure(x[2][3][:number])
+	savefig(joinpath(dir,"Dchoice_envV.png"))
+
+end
+function doplots()
+	r = runStd()
+	p1 = Param()
+	s = plots(r,p1)
+
+	p2 = Param(1.0)
+	x = runDchoice()
+	d = plots(x,p2)
+	return (s,d)
+
+end

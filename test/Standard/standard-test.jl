@@ -1,35 +1,11 @@
 
 
-# testing funs
 
-module test_funs
+module standard_test 
 
 using ConsProb
+using ConsProb.Standard
 using FactCheck
-
-facts("test utility function") do
-
-	p = Param()
-	@fact ConsProb.u(1.0,p) => p.oneover_oneminusgamma
-
-	x = rand()
-	@fact ConsProb.up(x,p) => x^(-p.gamma)
-
-	@fact ConsProb.iup(x,p) => x^(-1/p.gamma)
-
-	@fact p.mu => 0
-
-	#log utility
-	p = Param(1.0)
-	@fact ConsProb.u(1.0,p) => 0.0
-	@fact ConsProb.up(1.0,p) => 1.0
-	@fact ConsProb.iup(1.0,p) => 1.0
-
-	# change mu
-	p = Param(mu=20.0)
-	@fact p.mu => 20.0
-end
-
 
 facts("check consumption function in period T") do
 
