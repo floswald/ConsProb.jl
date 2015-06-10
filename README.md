@@ -2,12 +2,19 @@
 
 # Consumption / Savings / Discrete Choice Problems
 
+0. Installation
 1. Standard Lifecycle Savings
 2. Lifecycle Savings with discrete Retirement choice
 3. License
 
+## 0. Installation
 
-## Standard Lifecycle Savings
+```julia
+# in Julia:
+Pkg.clone("https://github.com/floswald/ConsProb.jl")
+```
+
+## 1. Standard Lifecycle Savings
 
 this repo has `julia` code that computes the solution to a finite time savings problem with iid or AR1 income uncertainty using 3 different methods:
 
@@ -15,7 +22,7 @@ this repo has `julia` code that computes the solution to a finite time savings p
 2. euler equation backward iteration
 3. endogenous grid method
 
-## Lifecycle Savings with discrete Retirement choice
+## 2. Lifecycle Savings with discrete Retirement choice
 
 It also has julia implementation of the discrete choice model which is based on code from [Fedor Iskhakov's](https://github.com/fediskhakov/egdst) github. This implements the method in the [working paper by Iskhakov, Jorgensen, Rust and Schjerning](https://dl.dropboxusercontent.com/u/17240700/sync4web/dcegm.pdf)
 
@@ -23,11 +30,8 @@ It also has julia implementation of the discrete choice model which is based on 
 
 ```julia
 using ConsProb
-r = ConsProb.runall()  # runs EGM, Euler and VFi savings models
-p  = Param()
-f = ConsProb.plots(r,p) # produces plots
-
-ConsProb.dchoice()  # runs and plots EGM for discrete choice
+Plotting.doplots()
+Plotting.printplots(dir)
 ```
 
 ## Output Savings Models
@@ -47,6 +51,8 @@ ConsProb.dchoice()  # runs and plots EGM for discrete choice
 
 ## Output Discrete Choice/Savings Model
 
+In this section, dashed lines in a graph stand for an analytic solution in that region (i.e. no approximation to be done).
+
 ### Conditinonal Value functions:
 [![iidcons](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/Dchoice_condV.png)]()
 
@@ -56,6 +62,6 @@ ConsProb.dchoice()  # runs and plots EGM for discrete choice
 ### Envevelope over Value functions, all ages:
 [![iidcons](https://dl.dropboxusercontent.com/u/109115/ConsProb.jl/Dchoice_envV.png)]()
 
-## License
+## 3. License
 
 Please observe the license when using this code in your work (see file `LICENSE`). Thank you.

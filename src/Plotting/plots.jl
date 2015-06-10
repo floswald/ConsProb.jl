@@ -366,25 +366,24 @@ function plots(m::iidDModel,p::Param)
 end
 
 
-function printplots()
-	home = ENV["HOME"]
+function printplots(dir=joinpath(ENV["HOME"],"Dropbox/public/ConsProb.jl"))
 	x = doplots()
 	figure(x[1][1][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/iidCons.png")
+	savefig(joinpath(dir,"iidCons.png"))
 	figure(x[1][2][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/iidVfun.png")
+	savefig(joinpath(dir,"iidVfun.png"))
 	figure(x[1][3][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/AR1Cons.png")
+	savefig(joinpath(dir,"AR1Cons.png"))
 	figure(x[1][4][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/AR1Vfun.png")
+	savefig(joinpath(dir,"AR1Vfun.png"))
 
 	d = runDchoice()
 	figure(x[2][1][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/Dchoice_condV.png")
+	savefig(joinpath(dir,"Dchoice_condV.png"))
 	figure(x[2][2][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/Dchoice_envC.png")
+	savefig(joinpath(dir,"Dchoice_envC.png"))
 	figure(x[2][3][:number])
-	savefig("$home/Dropbox/public/ConsProb.jl/Dchoice_envV.png")
+	savefig(joinpath(dir,"Dchoice_envV.png"))
 
 end
 function doplots()

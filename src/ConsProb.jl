@@ -21,6 +21,6 @@ include(joinpath("Standard","Standard.jl"))
 include(joinpath("Dchoice","Dchoice.jl"))
 include(joinpath("Plotting","Plotting.jl"))
 
-export Dchoice, Standard, Models
+export Dchoice, Standard, Models, Plotting
 
 end
