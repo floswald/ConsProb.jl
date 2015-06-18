@@ -18,11 +18,12 @@ ConsProb.EGM!(m,p)
 ConsProb.plots(m,p)
 
 
-p  = ConsProb.Param()
-m  = ConsProb.iidDebtModel(p)
-ConsProb.EGM!(m,p)
-ConsProb.plot(m.M[:,1:7],m.V[:,1:7])
-ConsProb.xlim([-5,100])
+p  = ConsProb.Models.Param(mu=100)
+m  = ConsProb.Models.iidDebtModel(p)
+ConsProb.Standard.EGM!(m,p)
+ConsProb.Plotting.plot(m.M[:,1:7],m.V[:,1:7])
+ConsProb.Plotting.xlim([-5,5])
+ConsProb.Plotting.ylim([0,5])
 
 
 # run all

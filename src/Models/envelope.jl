@@ -75,3 +75,16 @@ end
 function get_vbound(e::Dict{Int,Envelope},it::Int)
 	e[it].env_vbound 
 end
+
+
+"""
+Value Function type
+"""
+type Vfun
+	v         :: Vector{Float64}		# values on interior of value function domain
+	vbound    :: Float64 				# value on the lower function boundary
+end
+v(x::Vfun) = x.v
+v0(x::Vfun) = vcat(vbound,v)
+
+
