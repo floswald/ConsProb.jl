@@ -17,6 +17,9 @@ m  = ConsProb.iidDModel(p)
 ConsProb.EGM!(m,p)
 ConsProb.plots(m,p)
 
+p  = ConsProb.Models.Param()
+m  = ConsProb.Models.AR1Model(p)
+ConsProb.Standard.EGM!(m,p)
 
 p  = ConsProb.Models.Param(mu=100)
 m  = ConsProb.Models.iidDebtModel(p)
