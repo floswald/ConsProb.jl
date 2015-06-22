@@ -134,6 +134,9 @@ function scaleGrid(lb::Float64,ub::Float64,n::Int,logorder::Int=1)
 	end
 end
 
+function invscaleGrid(lb::Float64,ub::Float64,n::Int,logorder::Int=1)
+end
+
 
 """
 lifecycle profile in income

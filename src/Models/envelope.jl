@@ -86,5 +86,10 @@ type Vfun
 end
 v(x::Vfun) = x.v
 v0(x::Vfun) = vcat(vbound,v)
-
+function set!(x::Vfun,y::Vector{Float64}) 
+	x.v = y
+end
+function set_vbound!(x::Vfun,y::Float64) 
+	x.vbound = y
+end
 

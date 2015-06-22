@@ -109,11 +109,10 @@ type iidDebtModel <: Model
 	c2::Vector{Float64} 
 
 	# result objects
-	C::Array{Float64,2} 	# consumption function on (na,nT)
-	S::Array{Float64,2} 	# savings function on (na,nT)
-	M::Array{Float64,2} 	# endogenous cash on hand on (na,nT)
-	V::Array{Float64,2} 	# value function on (na,nT). Optional.
-	Vzero::Array{Float64,1} 	# value function of saving zero
+	c::Dict{Int,Vfun}  	# dict of consumption functions
+	s::Dict{Int,Vfun} 	# savings function on (na,nT)
+	m::Dict{Int,Vfun} 	# endogenous cash on hand on (na,nT)
+	v::Dict{Int,Vfun} 	# value function on (na,nT). Optional.
 	
 	dont::Array{Bool,3}	
 
@@ -136,10 +135,10 @@ type iidDebtModel <: Model
 		# bounds = [(-1)*yvec[1]*(1-p.R^i) /(1- p.R) for i in (p.nT-2):-1:1]
 
 		# can borrow only up to lowest income value
-		bounds = [(-1)*yvec[1] for i in (p.nT-2):-1:1]
+		# bounds = [(-1)*yvec[1] for i in (p.nT-2):-1:1]
 		# bounds[bounds .< (-5)*mean(yvec)] = (-5)*mean(yvec)
 		# bounds = vcat(bounds,0.0)  #last period
-		# bounds = Float64[(-5)*mean(yvec) for i in 1:(p.nT-2)]
+		bounds = Float64[(-5)*mean(yvec) for i in 1:(p.nT-2)]
 		bounds = vcat(bounds,0.0,0.0)  #last and penultimate periods end of period assets must be positive
 
 		avec = zeros(p.na,p.nT)
@@ -161,16 +160,15 @@ type iidDebtModel <: Model
 		m2 = zeros(p.ny)
 		c2 = zeros(p.ny)
 
-		C = zeros(p.na,p.nT)
-		S = zeros(p.na,p.nT)
-		M = zeros(p.na,p.nT)
-		V = zeros(p.na,p.nT)
-		Vzero = zeros(p.nT)
+		m = [it => Envelope() for it in 1:p.nT]
+		s = [it => Envelope() for it in 1:p.nT]
+		v = [it => Envelope() for it in 1:p.nT]
+		c = [it => Envelope() for it in 1:p.nT]
 
 		dont = falses(p.na,p.ny,p.nT)
 
 
-		return new(bounds,avec,yvec,ywgt,m1,c1,ev,m2,c2,C,S,M,V,Vzero,dont)
+		return new(bounds,avec,yvec,ywgt,m1,c1,ev,m2,c2,c,s,m,v,dont)
 	end
 end
 
@@ -294,7 +292,7 @@ type AR1Model <: Model
 		yvec = z + p.mu
 
 		# precompute next period's cash on hand.
-		m1 = p.R * Float64[avec[i] + yvec[j] for i=1:p.na, j=1:p.ny]
+		m1 = Float64[p.R * avec[i] + yvec[j] for i=1:p.na, j=1:p.ny]
 		c1 = zeros(p.na,p.ny)
 		ev = zeros(p.na,p.ny)
 

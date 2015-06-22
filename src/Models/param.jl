@@ -10,6 +10,7 @@ Holds the user-set parameter values.
 * `na`: number of grid points for assets
 * `ny`: number of grid points for income
 * `nT`: number of time periods
+* `a_lowT`: lower bound on assets in final period
 * `a_low`: lower bound on assets
 * `a_high`: upper bound on assets
 * `mu`: unconditional mean of income (iid case)
@@ -38,6 +39,7 @@ type Param
 	nT :: Int   # maximal age
 	a_high::Float64
 	a_low::Float64
+	a_lowT::Float64
 	nD:: Int # number of discrete choices
 
 	# consumption floor
@@ -76,6 +78,7 @@ type Param
 		nT     = 6
 		a_high = 50.0
 		a_low  = 0.0
+		a_lowT  = 0.0
 		nD     = 2
 
 		cfloor = 0.001
@@ -95,7 +98,7 @@ type Param
 		dorefine=true
 		printdebug=true
 
-		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,nD,cfloor,alpha,mu,sigma,rho_z,eps_z,dorefine,printdebug)
+		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,a_lowT,nD,cfloor,alpha,mu,sigma,rho_z,eps_z,dorefine,printdebug)
 	end
 
 	function Param(;mu=1)
@@ -114,6 +117,7 @@ type Param
 		ny = 10
 		nT = 8
 		a_high = 300.0
+		a_lowT  = 1e-6
 		a_low  = 1e-6
 		nD = 2
 
@@ -130,6 +134,6 @@ type Param
 
 		dorefine=false
 
-		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,nD,cfloor,alpha,mu,sigma,rho_z,eps_z,dorefine)
+		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,a_lowT,nD,cfloor,alpha,mu,sigma,rho_z,eps_z,dorefine)
 	end
 end

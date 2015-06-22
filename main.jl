@@ -1,7 +1,7 @@
 
 
 
-	home = ENV["HOME"]
+home = ENV["HOME"]
 cd("$home/git/EGM/ConsProb.jl/")
 
 include("src/ConsProb.jl")

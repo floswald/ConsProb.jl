@@ -192,12 +192,12 @@ function EGM!(m::AR1Model,p::Param)
 				tmpy = [0.0, m.C[:,iiy,it+1] ]
 				for ia in 1:p.na
 					m.c1[ia+p.na*(iiy-1)] = linearapprox(tmpx,tmpy,m.m1[ia+p.na*(iiy-1)],1,p.na)
-					# m.c1[ia,iiy] = linearapprox(tmpx,tmpy,m.m1[ia,iiy],1,p.na)
+					# m.c1[ia+p.na*(iiy-1)] = linearapprox(tmpx,tmpy,m.m1[ia+p.na*(iy-1)],1,p.na)
 				end
 			end
 
 			# get expected marginal value of saving: RHS of euler equation
-			# beta * R * E[ u'(c_{t+1}) ] 
+			# beta * R * E[ u'(c_{t+1}) | y_t] 
 			Eu = p.R * p.beta .* m.ywgt[iy,:] * transpose(up(m.c1,p))
 
 			# get optimal consumption today from euler equation: invert marginal utility
@@ -230,6 +230,7 @@ function EGM!(m::AR1Model,p::Param)
 				vv   = m.V[:,iiy,it+1]
 				for ia in 1:p.na
 					idx = ia+p.na*(iiy-1)
+					# idx = ia+p.na*(iy-1)
 					if dont[idx]
 						m.ev[idx] = u(m.m1[idx],p) + p.beta * m.Vzero[iiy,it+1]
 					else
@@ -253,12 +254,12 @@ end
 function EGM!(m::iidDebtModel,p::Param)
 
 	# final period: consume everything.
-	m.M[:,p.nT] = linspace(0.01,p.a_high,p.na)
-	m.C[:,p.nT] = linspace(0.01,p.a_high,p.na)
-	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
 
-	m.V[:,p.nT] = u(m.C[:,p.nT],p) + p.beta * 0.0
-	# m.Vzero[p.nT] = m.V[1,p.nT] # save expected value of borrowing the maximal amount.
+	it = p.nT
+	set!(m.c[it],linspace(p.a_lowT,p.a_high,p.na))
+	set!(m.m[it],linspace(p.a_lowT,p.a_high,p.na))
+	set!(m.v[it],u(m.c[it],p))
+	set_vbound!(m.v[it],0.0)
 
 	# preceding periods
 	for it in (p.nT-1):-1:1
