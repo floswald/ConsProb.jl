@@ -50,7 +50,7 @@ function plots(d::Dict,p::Param)
 		# plot consumption functions
 		# ==========================
 
-		fig, axes = plt.subplots(1,3,figsize=(10,5))
+		fig, axes = subplots(1,3,figsize=(10,5))
 
 	    currfig = 0
 	    for (k,v) in d["iid"]
@@ -91,7 +91,7 @@ function plots(d::Dict,p::Param)
 		# plot Value functions
 		# ====================
 		
-		fig1, axes1 = plt.subplots(1,3,figsize=(10,5))
+		fig1, axes1 = subplots(1,3,figsize=(10,5))
 
 	    currfig = 0
 	    for (k,v) in d["iid"]
@@ -137,7 +137,7 @@ function plots(d::Dict,p::Param)
 
 		it = 1
 
-		fig2, axes2 = plt.subplots(1,3,figsize=(10,5))
+		fig2, axes2 = subplots(1,3,figsize=(10,5))
 
 	    currfig = 0
 	    for (k,v) in d["AR1"]
@@ -182,7 +182,7 @@ function plots(d::Dict,p::Param)
 
 		# AR1 value functions in period 1
 
-		fig3, axes3 = plt.subplots(1,3,figsize=(10,5))
+		fig3, axes3 = subplots(1,3,figsize=(10,5))
 
 	    currfig = 0
 	    for (k,v) in d["AR1"]
@@ -297,8 +297,8 @@ end
 function plots(m::iidDModel,p::Param)
 	lwi = 1.5
 	lstyle="dashed"
-	d_vf = plt.figure(figsize=(10,7))
-	ax1 = plt.subplot(2,3,1)
+	d_vf = figure(figsize=(10,7))
+	ax1 = subplot(2,3,1)
 	for j in 6:-1:1
 		if j==6
 			ax = ax1
@@ -307,7 +307,7 @@ function plots(m::iidDModel,p::Param)
 			x = linspace(p.cfloor,cond(m.m,j,1)[2],100)
 			ax[:plot](x,map(z -> u(z,false,p) + p.beta * get_vbound(m.v,j,1), x),label="retired",color="red",lw=lwi,linestyle=lstyle)
 		else
-			ax = plt.subplot(2,3,6-j+1,sharey=ax1)
+			ax = subplot(2,3,6-j+1,sharey=ax1)
 			# working
 			ax[:plot](cond(m.m,j,2),cond(m.v,j,2),color="black",lw=lwi,label="working")
 			# analytic part
@@ -329,7 +329,7 @@ function plots(m::iidDModel,p::Param)
 	d_vf[:suptitle]("Value functions for Retirement vs Working")
 
 	# consumption function
-	cons = plt.figure(figsize=(7,7))
+	cons = figure(figsize=(7,7))
     jet = ColorMap("jet")[:__call__] # get a color map function
     plot(env(m.m,1),env(m.c,1),color="blue",lw=lwi,label="t=1")
 	for it in 2:(p.nT-1)
@@ -345,7 +345,7 @@ function plots(m::iidDModel,p::Param)
 	grid()
 
 	# envelope over value functions
-	vf = plt.figure(figsize=(7,7))
+	vf = figure(figsize=(7,7))
 	for it in 1:(p.nT-1)
 	    plot(env(m.m,it),env(m.v,it),color=jet(it/(p.nT)),lw=lwi,label="t=$it")
 		x = linspace(p.cfloor,env(m.m,it)[1],50)

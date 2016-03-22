@@ -213,7 +213,6 @@ type iidDModel <: Model
 	"""
 	Constructor for iid Dchoice Model
 	"""
-
 	function iidDModel(p::Param)
 
 		# avec          = scaleGrid(0.0,p.a_high,p.na,2)

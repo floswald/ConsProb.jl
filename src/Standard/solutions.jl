@@ -399,7 +399,7 @@ function EulerResid(c::Float64,cash::Float64,cplus::Vector{Float64},p::Param,m::
 	# else
 		m.m2 = p.R * (cash - c) .+ m.yvec  # (ny,1)
 		# interpolate optimal consumption c(t+1), given c(t), on each y-state
-		m.c2 = linearapprox([0,m.avec],[0,cplus],m.m2)
+		m.c2 = linearapprox([0;m.avec],[0;cplus],m.m2)
 		# for iy in 1:p.ny
 		# 	# m.c2[iy] = linearapprox([0,m.avec],[0,cplus],m.m2[iy],1,p.na)
 		# 	m.c2[iy] = linearapprox(m.avec,cplus,m.m2[iy])
