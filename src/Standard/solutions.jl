@@ -15,10 +15,10 @@ end
 function runStd()
 
 	# return a Dict of Dicts
-	D = Dict{String,Any}()
+	D = Dict{AbstractString,Any}()
 
 	# iid model dict
-	d = Dict{String,Model}()
+	d = Dict{AbstractString,Model}()
 
 	# iid income models
 
@@ -55,7 +55,7 @@ function runStd()
 	# AR1 income model
 	# ================
 
-	d2 = Dict{String,Model}()
+	d2 = Dict{AbstractString,Model}()
 	p = Param(mu=10.0)
 
 	d2["EGM"] = AR1Model(p)
@@ -108,8 +108,8 @@ function EGM!(m::iidModel,p::Param)
 		# interpolate optimal consumption from next period on all cash-on-hand states
 		# using C[:,it+1] and M[:,it+1], find c(m,it)
 
-		tmpx = [0.0, m.M[:,it+1] ] 
-		tmpy = [0.0, m.C[:,it+1] ]
+		tmpx = [0.0; m.M[:,it+1] ] 
+		tmpy = [0.0; m.C[:,it+1] ]
 		for ia in 1:p.na
 			for iy in 1:p.ny
 				m.c1[ia+p.na*(iy-1)] = linearapprox(tmpx,tmpy,m.m1[ia+p.na*(iy-1)],1,p.na)
@@ -188,8 +188,8 @@ function EGM!(m::AR1Model,p::Param)
 
 			# next period's income index
 			for iiy in 1:p.ny
-				tmpx = [0.0, m.M[:,iiy,it+1] ] 
-				tmpy = [0.0, m.C[:,iiy,it+1] ]
+				tmpx = [0.0; m.M[:,iiy,it+1] ] 
+				tmpy = [0.0; m.C[:,iiy,it+1] ]
 				for ia in 1:p.na
 					m.c1[ia+p.na*(iiy-1)] = linearapprox(tmpx,tmpy,m.m1[ia+p.na*(iiy-1)],1,p.na)
 					# m.c1[ia+p.na*(iiy-1)] = linearapprox(tmpx,tmpy,m.m1[ia+p.na*(iy-1)],1,p.na)

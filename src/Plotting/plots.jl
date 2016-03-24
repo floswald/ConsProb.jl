@@ -57,11 +57,11 @@ function plots(d::Dict,p::Param)
 	    	currfig += 1
 	    	ax = axes[currfig]
 			if k=="EGM"
-				ax[:plot]([0.0,v.M[:,1]],[0.0,v.C[:,1]],color=jet(0),lw=2,alpha=0.6,label="period 1")
+				ax[:plot]([0.0;v.M[:,1]],[0.0;v.C[:,1]],color=jet(0),lw=2,alpha=0.6,label="period 1")
 				ax[:plot](v.M[:,p.nT],v.C[:,p.nT],color="black",lw=2,label="period $(p.nT)")
 				for it in 2:(p.nT-1)
 					x = [0.0,v.M[:,it]]
-					ax[:plot](x,[0.0,v.C[:,it]],color=jet(it/(p.nT)),lw=2,alpha=0.6)
+					ax[:plot](x,[0.0;v.C[:,it]],color=jet(it/(p.nT)),lw=2,alpha=0.6)
 				end
 			else
 				ax[:plot](v.avec,v.C[:,1],color=jet(0),alpha=0.6,lw=2,label="period 1")
@@ -144,11 +144,11 @@ function plots(d::Dict,p::Param)
 	    	currfig += 1
 	    	ax = axes2[currfig]
 			if k=="EGM"
-				ax[:plot]([0.0,v.M[:,1,it]],[0.0,v.C[:,1,it]],color=jet(0),lw=2,alpha=0.6,label="income 1")
+				ax[:plot]([0.0;v.M[:,1,it]],[0.0;v.C[:,1,it]],color=jet(0),lw=2,alpha=0.6,label="income 1")
 				ax[:plot](v.M[:,p.ny,it],v.C[:,p.ny,it],color="black",lw=2,label="income $(p.ny)")
 				for iy in 2:(p.ny-1)
 					x = [0.0,v.M[:,iy,it]]
-					ax[:plot](x,[0.0,v.C[:,iy,it]],color=jet(iy/(p.ny)),lw=2,alpha=0.6)
+					ax[:plot](x,[0.0;v.C[:,iy,it]],color=jet(iy/(p.ny)),lw=2,alpha=0.6)
 				end
 			elseif k=="VF_a"
 				ax[:plot](v.avec .+ v.yvec[1] ,v.C[:,1,it],color=jet(0),alpha=0.6,lw=2,label="income 1")
