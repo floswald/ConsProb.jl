@@ -1,5 +1,7 @@
 
-using ConsProb.Models
+module Models_test 
+
+using ConsProb, FactCheck
 
 facts("Models.") do
 
@@ -8,7 +10,7 @@ facts("Models.") do
 		p = Param()
 		@fact p.gamma => 2.0
 		@fact p.mu => 1
-		@fact u(1.0,p) => p.oneover_oneminusgamma
+		@fact ConsProb.u(1.0,p) => p.oneover_oneminusgamma
 		@fact p.a_low => 1e-6
 		@fact p.a_high => 300
 
@@ -32,24 +34,24 @@ facts("Models.") do
 		p = Param(1.0)
 		@fact p.gamma => 1.0
 		@fact p.mu => 0
-		@fact u(1.0,p) => 0.0
-		@fact up(1.0,p) => 1.0
-		@fact iup(1.0,p) => 1.0
+		@fact ConsProb.u(1.0,p) => 0.0
+		@fact ConsProb.up(1.0,p) => 1.0
+		@fact ConsProb.iup(1.0,p) => 1.0
 
 		x = rand()
-		@fact u(x,p) => log(x)
-		@fact up(x,p) => 1.0 / x
-		@fact iup(x,p) => 1.0 / x
+		@fact ConsProb.u(x,p) => log(x)
+		@fact ConsProb.up(x,p) => 1.0 / x
+		@fact ConsProb.iup(x,p) => 1.0 / x
 		# check utlity cost
-		@fact u(1.0,false,p) => 0.0
-		@fact u(1.0,true,p) => -p.alpha
+		@fact ConsProb.u(1.0,false,p) => 0.0
+		@fact ConsProb.u(1.0,true,p) => -p.alpha
 
 		#crra utility
 		p = Param()
 		x = rand()
-		@fact u(x,p) => p.oneover_oneminusgamma * (x^p.oneminusgamma)
-		@fact up(x,p) => x^(-p.gamma)
-		@fact iup(x,p) => x^(-1/p.gamma)
+		@fact ConsProb.u(x,p) => p.oneover_oneminusgamma * (x^p.oneminusgamma)
+		@fact ConsProb.up(x,p) => x^(-p.gamma)
+		@fact ConsProb.iup(x,p) => x^(-1/p.gamma)
 	end
 
 	context("iidModel") do
@@ -171,11 +173,7 @@ facts("Envelope.") do
 		@fact envvbound(ed,1) => vcat(x[4],env1)
 
 	end
-
-
-
-
-
+end
 end
 
 

@@ -4,8 +4,6 @@
 module standard_test 
 
 using ConsProb
-using ConsProb.Standard
-using FactCheck
 
 facts("check consumption function in period T") do
 

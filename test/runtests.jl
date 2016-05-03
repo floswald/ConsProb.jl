@@ -3,9 +3,7 @@
 
 module ConsProbTests
 
-
-using FactCheck
-
-include(joinpath("Models", "facts.jl"))
+include("models-test.jl")
+include("standard-test.jl")
 
 end

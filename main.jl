@@ -4,11 +4,11 @@ cd(Pkg.dir("ConsProb"))
 include("src/ConsProb.jl")
 
 
-ConsProb.Plotting.doplots()
-ConsProb.Plotting.printplots()
+ConsProb.doplots()
+ConsProb.printplots()
 
 
-x = ConsProb.Dchoice.run()
+x = ConsProb.run()
 include("test/runtests.jl")
 x = ConsProb.dchoice();
 p  = ConsProb.Param(1.0)
