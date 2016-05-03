@@ -109,10 +109,10 @@ type iidDebtModel <: Model
 	c2::Vector{Float64} 
 
 	# result objects
-	c::Dict{Int,Vfun}  	# dict of consumption functions
-	s::Dict{Int,Vfun} 	# savings function on (na,nT)
-	m::Dict{Int,Vfun} 	# endogenous cash on hand on (na,nT)
-	v::Dict{Int,Vfun} 	# value function on (na,nT). Optional.
+	c::Dict{Int,Envelope}  	# dict of consumption functions
+	s::Dict{Int,Envelope} 	# savings function on (na,nT)
+	m::Dict{Int,Envelope} 	# endogenous cash on hand on (na,nT)
+	v::Dict{Int,Envelope} 	# value function on (na,nT). Optional.
 	
 	dont::Array{Bool,3}	
 

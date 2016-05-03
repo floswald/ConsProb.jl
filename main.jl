@@ -1,10 +1,9 @@
 
 
-
-home = ENV["HOME"]
-cd("$home/git/EGM/ConsProb.jl/")
-
+cd(Pkg.dir("ConsProb"))
 include("src/ConsProb.jl")
+
+
 ConsProb.Plotting.doplots()
 ConsProb.Plotting.printplots()
 
