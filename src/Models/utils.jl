@@ -143,14 +143,19 @@ lifecycle profile in income
 
 returns income as function of deterministic age profile + shock. Assume that it=1 is age 20. Taken from Ikshkakov at https://github.com/fediskhakov/egdst
 """
-function income(it::Int,shock::Float64)
-	age = it + 19
-	exp( 1.5 + age*0.04 - 0.0004*(age^2) + shock)
+function income(shock::Float64,it::Int,p::Param)
+	if it == p.nT 
+		return 0.0
+	else
+		age = it + 19
+		return exp( 1.5 + age*0.04 - 0.0004*(age^2) + shock)
+	end
 end
-function income(it::Int,shock::Array{Float64})
+
+function income(shock::Array{Float64},it::Int,p::Param)
 	x = similar(shock)
 	for i=1:length(x)
-		x[i] = income(it,shock[i])
+		x[i] = income(it,shock[i],p)
 	end
 	return x
 end
@@ -206,6 +211,7 @@ function linearapprox(x::Vector{Float64},y::Vector{Float64},xi::Float64,lo::Int,
 	elseif xi < x[1]
 		# get linear approx below
 		@inbounds r = y[1] + (y[2] - y[1]) * (xi - x[1])  / (x[2] - x[1])
+		println("linearapprox: return $r")
 		return r
 	end
 	if xi == x[n]

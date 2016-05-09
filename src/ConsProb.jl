@@ -17,14 +17,17 @@ module ConsProb
 		   iidDebtModel, 
 		   AR1Model, 
 		   AR1Model_a,
-		   Envelope
+		   Envelope,
+		   Bfun
 
 
 	# export methods
 	export plots,
 			EGM!,
 			Euler!,
-			VFbi!
+			VFbi!,
+			v,
+			vb
 
 	# load files
 	include(joinpath("Models","envelope.jl"))

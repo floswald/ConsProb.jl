@@ -77,19 +77,30 @@ function get_vbound(e::Dict{Int,Envelope},it::Int)
 end
 
 
+
+# TODO: should this be specialized to hold n elements?
 """
-Value Function type
+# Bounded Function type
+
+## Fields
+
+* `v`: array of values on interior of domain
+* `vbound`: value on lower boundary (borrowing constraint)
 """
-type Vfun
-	v         :: Vector{Float64}		# values on interior of value function domain
-	vbound    :: Float64 				# value on the lower function boundary
+type Bfun
+	v        :: Vector{Float64}		# values on interior of value function domain
+	bound    :: Float64 				# value on the lower function boundary
 end
-v(x::Vfun) = x.v
-v0(x::Vfun) = vcat(vbound,v)
-function set!(x::Vfun,y::Vector{Float64}) 
+v(x::Bfun) = x.v
+b(x::Bfun) = x.bound
+vb(x::Bfun) = vcat(x.bound,x.v)
+function set!(x::Bfun,y::Vector{Float64}) 
 	x.v = y
 end
-function set_vbound!(x::Vfun,y::Float64) 
-	x.vbound = y
+function set!(x::Bfun,y::LinSpace) 
+	x.v = collect(y)
+end
+function set_bound!(x::Bfun,y::Float64) 
+	x.bound = y
 end
 

@@ -63,7 +63,7 @@ type Param
 	printdebug::Bool
 
 	# constructor for discrete choice model: log utility
-	function Param(gamm::Float64)
+	function Param(gamm::Float64,alow=0.0)
 
 		gamma                 = gamm
 		neg_gamma             = (-1.0) * gamma
@@ -78,7 +78,7 @@ type Param
 		ny     = 50
 		nT     = 6
 		a_high = 50.0
-		a_low  = 0.0
+		a_low  = alow
 		a_lowT  = 0.0
 		nD     = 2
 
@@ -101,7 +101,8 @@ type Param
 
 		return new(gamma,neg_gamma,oneminusgamma,oneover_oneminusgamma,neg_oneover_gamma,beta,R,na,ny,nT,a_high,a_low,a_lowT,nD,cfloor,alpha,mu,sigma,rho_z,eps_z,dorefine,printdebug)
 	end
-
+	
+	
 	function Param(;mu=1)
 
 
@@ -165,26 +166,29 @@ uses cash-on-hand m=y+a as state variable
 type iidModel <: Model
 
 	# computation grids
-	avec::Vector{Float64}
+	avec::Array{Vector{Float64}}	# different avec in each period possible
 	yvec::Vector{Float64}   # income support
 	ywgt::Vector{Float64}   # income weights
 
 	# intermediate objects (na,ny)
-	m1::Array{Float64,2}	# matrix (na,ny)
-	c1::Array{Float64,2}
+	mnext::Array{Float64,2}	# matrix (na,ny)
+	cnext::Array{Float64,2}
 	ev::Array{Float64,2}
 	# intermediate objects (ny,1)
 	m2::Vector{Float64} 
 	c2::Vector{Float64} 
 
 	# result objects
-	C::Array{Float64,2} 	# consumption function on (na,nT)
-	S::Array{Float64,2} 	# savings function on (na,nT)
-	M::Array{Float64,2} 	# endogenous cash on hand on (na,nT)
-	V::Array{Float64,2} 	# value function on (na,nT). Optional.
-	Vzero::Array{Float64,1} 	# value function of saving zero
+	# these are functions with a special value at their lower bound.
+	# there is one for each period
+	C::Array{Bfun} 	# consumption function
+	S::Array{Bfun} 	# savings function
+	M::Array{Bfun} 	# endogenous cash on hand
+	V::Array{Bfun} 	# value function. b(V) gives expected value at lower bound
+	# Vzero::Array{Float64,1} 	# expected value function of saving zero
 
 	toc::Float64   # elapsed time
+	it::Int  # current time period
 
 
 	"""
@@ -192,7 +196,7 @@ type iidModel <: Model
 	"""
 	function iidModel(p::Param)
 
-		avec          = scaleGrid(p.a_low,p.a_high,p.na,2)
+		avec          = [scaleGrid(p.a_low,p.a_high,p.na,2) for i=1:p.nT]
 		nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
 
 		# for y ~ N(mu,sigma), integrate y with 
@@ -201,29 +205,48 @@ type iidModel <: Model
 		ywgt = weights .* pi^(-0.5)
 
 		# precompute next period's cash on hand.
-		m1 = Float64[avec[ia]*p.R + yvec[iy] for ia in 1:p.na, iy in 1:p.ny]
+		# mnext = Float64[avec[ia]*p.R + yvec[iy] for ia in 1:p.na, iy in 1:p.ny]
 
 		# if you want a deterministic age profile in income, use income().
 		# you would have to change the params of income() though.
-		# m1 = Float64[avec[ia]*p.R + income(yvec[iy],it) for ia in 1:p.na, iy in 1:p.ny, it in 1:p.nT]
+		# mnext = Float64[avec[ia]*p.R + income(yvec[iy],it) for ia in 1:p.na, iy in 1:p.ny, it in 1:p.nT]
 
-		c1 = zeros(p.na,p.ny)
+		mnext = zeros(p.na,p.ny)
+		cnext = zeros(p.na,p.ny)
 		ev = zeros(p.na,p.ny)
 
 		m2 = zeros(p.ny)
 		c2 = zeros(p.ny)
 
-		C = zeros(p.na,p.nT)
-		S = zeros(p.na,p.nT)
-		M = zeros(p.na,p.nT)
-		V = zeros(p.na,p.nT)
-		Vzero = zeros(p.nT)
-
+		C = [Bfun(zeros(p.na),p.cfloor) for i=1:p.nT]
+		S = [Bfun(zeros(p.na),NaN) for i=1:p.nT]
+		M = [Bfun(zeros(p.na),NaN) for i=1:p.nT]
+		V = [Bfun(zeros(p.na),NaN) for i=1:p.nT]
+		it = p.nT
 		toc = 0.0
 
 
-		return new(avec,yvec,ywgt,m1,c1,ev,m2,c2,C,S,M,V,Vzero,toc)
+		return new(avec,yvec,ywgt,mnext,cnext,ev,m2,c2,C,S,M,V,it,toc)
 	end
+end
+
+
+"""
+	cashnext(a::Float64,y::Float64,p::Param)
+
+Compute next periods cash in hand.
+"""
+function cashnext(a::Float64,y::Float64,p::Param)
+	a*p.R +y
+end
+
+"""
+	invcashnext(cashnext::Float64,y::Float64,p::Param)
+
+Compute end-of-period asset corresponding to next periods cash in hand.
+"""
+function invcashnext(cashnext::Float64,y::Float64,p::Param)
+	(cashnext - y) / p.R
 end
 
 """
@@ -240,18 +263,19 @@ type iidDebtModel <: Model
 	ywgt::Vector{Float64}   # income weights
 
 	# intermediate objects (na,ny)
-	m1::Array{Float64,3}	# matrix (na,ny,nt)
-	c1::Array{Float64,2}
+	mnext::Array{Float64,3}	# matrix (na,ny,nt)
+	cnext::Array{Float64,2}
 	ev::Array{Float64,2}
 	# intermediate objects (ny,1)
 	m2::Vector{Float64} 
 	c2::Vector{Float64} 
 
 	# result objects
-	c::Dict{Int,Envelope}  	# dict of consumption functions
-	s::Dict{Int,Envelope} 	# savings function on (na,nT)
-	m::Dict{Int,Envelope} 	# endogenous cash on hand on (na,nT)
-	v::Dict{Int,Envelope} 	# value function on (na,nT). Optional.
+	C::Array{Float64,2} 	# consumption function on (na,nT)
+	S::Array{Float64,2} 	# savings function on (na,nT)
+	M::Array{Float64,2} 	# endogenous cash on hand on (na,nT)
+	V::Array{Float64,2} 	# value function on (na,nT). Optional.
+	Vzero::Array{Float64,1} 	# value function of saving zero
 	
 	dont::Array{Bool,3}	
 
@@ -287,27 +311,28 @@ type iidDebtModel <: Model
 		# avec = linspace((-5)*mean(yvec),p.a_high,p.na)
 
 		# precompute next period's cash on hand.
-		m1 = Float64[avec[ia,it+1]*p.R + yvec[iy] for ia in 1:p.na, iy in 1:p.ny, it in 1:(p.nT-1)]
+		mnext = Float64[avec[ia,it+1]*p.R + yvec[iy] for ia in 1:p.na, iy in 1:p.ny, it in 1:(p.nT-1)]
 
 		# if you want a deterministic age profile in income, use income().
 		# you would have to change the params of income() though.
-		# m1 = Float64[avec[ia]*p.R + income(yvec[iy],it) for ia in 1:p.na, iy in 1:p.ny, it in 1:p.nT]
+		# mnext = Float64[avec[ia]*p.R + income(yvec[iy],it) for ia in 1:p.na, iy in 1:p.ny, it in 1:p.nT]
 
-		c1 = zeros(p.na,p.ny)
+		cnext = zeros(p.na,p.ny)
 		ev = zeros(p.na,p.ny)
 
 		m2 = zeros(p.ny)
 		c2 = zeros(p.ny)
 
-		m = [it => Envelope() for it in 1:p.nT]
-		s = [it => Envelope() for it in 1:p.nT]
-		v = [it => Envelope() for it in 1:p.nT]
-		c = [it => Envelope() for it in 1:p.nT]
+		C = zeros(p.na,p.nT)
+		S = zeros(p.na,p.nT)
+		M = zeros(p.na,p.nT)
+		V = zeros(p.na,p.nT)
+		Vzero = zeros(p.nT)
 
 		dont = falses(p.na,p.ny,p.nT)
 
 
-		return new(bounds,avec,yvec,ywgt,m1,c1,ev,m2,c2,c,s,m,v,dont)
+		return new(bounds,avec,yvec,ywgt,mnext,cnext,ev,m2,c2,C,S,M,V,Vzero,dont)
 	end
 end
 
@@ -329,8 +354,8 @@ type iidDModel <: Model
 	ywgt::Vector{Float64}   # income weights
 
 	# intermediate objects (na,ny,nD)
-	m1::Dict{Int,Dict}	# a dict[it] for each period
-	c1::Matrix{Float64}
+	mnext::Dict{Int,Dict}	# a dict[it] for each period
+	cnext::Matrix{Float64}
 	ev::Matrix{Float64}
 
 	# result objects
@@ -372,8 +397,8 @@ type iidDModel <: Model
 		# (na,ny,nD)
 		# iD = 1: no work
 		# iD = 2: work
-		m1 = [it => [id => Float64[avec[ia]*p.R + income(it,yvec[iy]) * (id-1) for ia in 1:p.na, iy in 1:p.ny  ] for id=1:p.nD] for it=1:p.nT]
-		c1 = zeros(p.na,p.ny)
+		mnext = [it => [id => Float64[avec[ia]*p.R + income(it,yvec[iy]) * (id-1) for ia in 1:p.na, iy in 1:p.ny  ] for id=1:p.nD] for it=1:p.nT]
+		cnext = zeros(p.na,p.ny)
 		ev = zeros(p.na,p.ny)
 
 		# dicts
@@ -383,7 +408,7 @@ type iidDModel <: Model
 		c = [it => Envelope() for it in 1:p.nT]
 		# dchoice = [it => ["d" => zeros(Int,p.na), "Vzero" => 0.0, "threshold" => 0.0] for it=1:p.nT]
 
-		return new(avec,yvec,ywgt,m1,c1,ev,m,v,c)
+		return new(avec,yvec,ywgt,mnext,cnext,ev,m,v,c)
 	end
 end
 
@@ -401,8 +426,8 @@ type AR1Model <: Model
 	ywgt::Matrix{Float64}   # transition matrix for income
 
 	# intermediate objects (na,ny)
-	m1::Array{Float64,2}	# matrix (na,ny)
-	c1::Array{Float64,2}
+	mnext::Array{Float64,2}	# matrix (na,ny)
+	cnext::Array{Float64,2}
 	ev::Array{Float64,2}
 	# intermediate objects (ny,1)
 	m2::Vector{Float64} 
@@ -430,8 +455,8 @@ type AR1Model <: Model
 		yvec = z + p.mu
 
 		# precompute next period's cash on hand.
-		m1 = Float64[p.R * avec[i] + yvec[j] for i=1:p.na, j=1:p.ny]
-		c1 = zeros(p.na,p.ny)
+		mnext = Float64[p.R * avec[i] + yvec[j] for i=1:p.na, j=1:p.ny]
+		cnext = zeros(p.na,p.ny)
 		ev = zeros(p.na,p.ny)
 
 		m2 = zeros(p.ny)
@@ -445,7 +470,7 @@ type AR1Model <: Model
 
 		toc = 0.0
 
-		return new(avec,z,yvec,ywgt,m1,c1,ev,m2,c2,C,S,M,V,Vzero,toc)
+		return new(avec,z,yvec,ywgt,mnext,cnext,ev,m2,c2,C,S,M,V,Vzero,toc)
 	end
 end
 
