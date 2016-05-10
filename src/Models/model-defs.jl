@@ -249,95 +249,6 @@ function invcashnext(cashnext::Float64,y::Float64,p::Param)
 	(cashnext - y) / p.R
 end
 
-"""
-Model with iid income uncertainty and unsecured debt
-
-uses cash-on-hand m=y+a as state variable
-"""
-type iidDebtModel <: Model
-
-	# computation grids
-	bounds::Vector{Float64}
-	avec::Matrix{Float64}
-	yvec::Vector{Float64}   # income support
-	ywgt::Vector{Float64}   # income weights
-
-	# intermediate objects (na,ny)
-	mnext::Array{Float64,3}	# matrix (na,ny,nt)
-	cnext::Array{Float64,2}
-	ev::Array{Float64,2}
-	# intermediate objects (ny,1)
-	m2::Vector{Float64} 
-	c2::Vector{Float64} 
-
-	# result objects
-	C::Array{Float64,2} 	# consumption function on (na,nT)
-	S::Array{Float64,2} 	# savings function on (na,nT)
-	M::Array{Float64,2} 	# endogenous cash on hand on (na,nT)
-	V::Array{Float64,2} 	# value function on (na,nT). Optional.
-	Vzero::Array{Float64,1} 	# value function of saving zero
-	
-	dont::Array{Bool,3}	
-
-	"""
-	Constructor for iid Debt Model
-	"""
-	function iidDebtModel(p::Param)
-
-		nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
-
-		# for y ~ N(mu,sigma), integrate y with 
-		# http://en.wikipedia.org/wiki/Gauss-Hermite_quadrature
-		yvec = sqrt(2.0) * p.sigma .* nodes .+ p.mu
-		ywgt = weights .* pi^(-0.5)
-
-		# end of period assets a are subject to borrowing constraints
-		# borrowing limits: natural debt limit approach.
-		# you can borrow the smaller of 3 times average income or
-		# the natural debt limit, which is the lowest income state discounted 
-		# bounds = [(-1)*yvec[1]*(1-p.R^i) /(1- p.R) for i in (p.nT-2):-1:1]
-
-		# can borrow only up to lowest income value
-		# bounds = [(-1)*yvec[1] for i in (p.nT-2):-1:1]
-		# bounds[bounds .< (-5)*mean(yvec)] = (-5)*mean(yvec)
-		# bounds = vcat(bounds,0.0)  #last period
-		bounds = Float64[(-5)*mean(yvec) for i in 1:(p.nT-2)]
-		bounds = vcat(bounds,0.0,0.0)  #last and penultimate periods end of period assets must be positive
-
-		avec = zeros(p.na,p.nT)
-		for i=(p.nT):-1:1
-			avec[:,(p.nT)-i+1] = linspace(bounds[(p.nT)-i+1],p.a_high,p.na)
-		end
-		# avec = linspace((-5)*mean(yvec),p.a_high,p.na)
-
-		# precompute next period's cash on hand.
-		mnext = Float64[avec[ia,it+1]*p.R + yvec[iy] for ia in 1:p.na, iy in 1:p.ny, it in 1:(p.nT-1)]
-
-		# if you want a deterministic age profile in income, use income().
-		# you would have to change the params of income() though.
-		# mnext = Float64[avec[ia]*p.R + income(yvec[iy],it) for ia in 1:p.na, iy in 1:p.ny, it in 1:p.nT]
-
-		cnext = zeros(p.na,p.ny)
-		ev = zeros(p.na,p.ny)
-
-		m2 = zeros(p.ny)
-		c2 = zeros(p.ny)
-
-		C = zeros(p.na,p.nT)
-		S = zeros(p.na,p.nT)
-		M = zeros(p.na,p.nT)
-		V = zeros(p.na,p.nT)
-		Vzero = zeros(p.nT)
-
-		dont = falses(p.na,p.ny,p.nT)
-
-
-		return new(bounds,avec,yvec,ywgt,mnext,cnext,ev,m2,c2,C,S,M,V,Vzero,dont)
-	end
-end
-
-
-
 
 """
 Binary Choice Model with iid income uncertainty
@@ -434,11 +345,10 @@ type AR1Model <: Model
 	c2::Vector{Float64} 
 
 	# result objects on (na,ny,nT)
-	C::Array{Float64,3} 	
-	S::Array{Float64,3} 	
-	M::Array{Float64,3} 	
-	V::Array{Float64,3} 	
-	Vzero::Array{Float64,2} 	# value function of saving zero
+	C::Array{Bfun,2} 	# consumption function
+	S::Array{Bfun,2} 	# savings function
+	M::Array{Bfun,2} 	# endogenous cash on hand
+	V::Array{Bfun,2} 	# value function. b(V) gives expected value at lower bound
 
 	toc::Float64   # elapsed time
 
@@ -462,15 +372,14 @@ type AR1Model <: Model
 		m2 = zeros(p.ny)
 		c2 = zeros(p.ny)
 
-		C = zeros(p.na,p.ny,p.nT)
-		S = zeros(p.na,p.ny,p.nT)
-		M = zeros(p.na,p.ny,p.nT)
-		V = zeros(p.na,p.ny,p.nT)
-		Vzero = zeros(p.ny,p.nT)
-
+		C = [Bfun(zeros(p.na),p.cfloor) for j=1:p.ny, i=1:p.nT]
+		S = [Bfun(zeros(p.na),NaN)      for j=1:p.ny, i=1:p.nT]
+		M = [Bfun(zeros(p.na),NaN)      for j=1:p.ny, i=1:p.nT]
+		V = [Bfun(zeros(p.na),NaN)      for j=1:p.ny, i=1:p.nT]
+		it = p.nT
 		toc = 0.0
 
-		return new(avec,z,yvec,ywgt,mnext,cnext,ev,m2,c2,C,S,M,V,Vzero,toc)
+		return new(avec,z,yvec,ywgt,mnext,cnext,ev,m2,c2,C,S,M,V,toc)
 	end
 end
 

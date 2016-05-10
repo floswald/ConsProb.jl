@@ -109,20 +109,16 @@ function findLowestA(m::Model,cashn::Float64,p::Param,it::Int)
 	# you need to basically find a_low such that cons = 0
 	# tmpx = [0.0; m.M[:,it+1] ] 
 	tmpy = vb(m.C[it+1])	# get next periods consumption without bound
-	println("m = $tmpx")
-	println("c = $tmpy")
+	# println("m = $tmpx")
+	# println("c = $tmpy")
 
 	# check lowest cash in hand
 	# if implied consumption is negative
-	println("findLowestA: cashn = $cashn")
-	println("findLowestA: consnext = $(linearapprox(tmpx,tmpy,cashn))")
 	if linearapprox(tmpx,tmpy,cashn) < 0
-		# find cashnext such that c=0
-		cashn = tmpx[1] - (tmpy[1] * (tmpx[2]-tmpx[1])) / (tmpy[2] - tmpy[1])
-		println("findLowestA: new cashn = $cashn")
+		# find cashnext such that c=p.cfloor
+		cashn = p.cfloor + tmpx[1] - (tmpy[1] * (tmpx[2]-tmpx[1])) / (tmpy[2] - tmpy[1])
 	end
 	# return implied level of end-of-period asset that makes next period cash in hand = 0
-	println("implied lowest asset: $(invcashnext(cashn,income(m.yvec[1],it+1,p),p))")
 	return invcashnext(cashn,income(m.yvec[1],it+1,p),p)	# find corresponding a level
 end
 
@@ -145,7 +141,7 @@ function fillAvec!(m::Model,p::Param,it::Int)
 		# fill with grid from a to a_upper
 		a = findLowestA(m,x,p,it)
 		m.avec[it] = scaleGrid(a,p.a_high,p.na)
-		println("fillAvec scaling: $(m.avec[it])")
+		# println("fillAvec scaling: $(m.avec[it])")
 	else
 		# don't do anything: all set
 	end
@@ -186,49 +182,37 @@ Compute EGM solution for an `iidModel`.
 """
 function EGM!(m::iidModel,p::Param)
 
-	# final period: consume everything.
 	it = p.nT
-	println("period $it")
 	# initiate consumption function on arbitrary 2 (positive) points of m
-	set!(m.M[it],[p.a_high/2;p.a_high])	# well here you decide whether you can die in debt or not
+	# final period: consume everything.
+	# C is linear in last period.
+	set!(m.M[it],[p.a_high/2;p.a_high])	
 	set!(m.C[it],[p.a_high/2;p.a_high])	
 	set!(m.V[it],u(v(m.C[it]),p) + p.beta * 0.0)   # future value in last period: 0.0
 
 	# bounds
-	set_bound!(m.M[it],m.avec[it][1]*p.R)
+	set_bound!(m.M[it],0.0)	# here you decide whether one can die in debt or not
+	# set_bound!(m.M[it],m.avec[it][1]*p.R)	# here you decide whether one can die in debt or not
 	set_bound!(m.C[it],p.cfloor)
 	set_bound!(m.V[it],0.0)
 
-
 	# preceding periods
 	for it in (p.nT-1):-1:1
-	println("period $it")
 		fillAvec!(m,p,it)
 		# get all future consumptions and compute RHS of euler equation
 		fillCnext!(m,p,it)
-	println("cnext = $(m.cnext[:,1])")
-	println("mnext = $(m.mnext[:,1])")
 		Eu = RHS(m,p,it)
-	# println("Eu = $Eu")
 		# get optimal consumption today from euler equation: invert marginal utility
 		set!(m.C[it],iup(Eu,p))
-
-	# println("c = $(v(m.C[it]))")
-		# floor consumption
-		m.C[it].v[m.C[it].v .<p.cfloor] = p.cfloor
 
 		# get endogenous grid today
 		set!(m.M[it],v(m.C[it]) + m.avec[it])
 		# set bound on m: which m corresponds to zero consumption?
 		set_bound!(m.M[it],m.avec[it][1])
-	# println("m = $(v(m.M[it]))")
 
 		# compute value function
 		computeVfun!(m,p,it)
-
 	end
-
-
 end
 
 """
@@ -267,85 +251,19 @@ function computeVfun!(m::iidModel,p::Param,it::Int)
 	set!(m.V[it],u(v(m.C[it]),p) + p.beta * ev)
 end
 
-
-
-# endogenous grid method for iid Case
-# function EGM!(m::iidModel,p::Param)
-
-# 	# final period: consume everything.
-# 	m.M[:,p.nT] = m.avec
-# 	m.C[:,p.nT] = m.avec
-# 	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
-
-# 	m.V[:,p.nT] = u(m.C[:,p.nT],p) + p.beta * 0.0
-
-# 	# preceding periods
-# 	for it in (p.nT-1):-1:1
-
-# 		# interpolate optimal consumption from next period on all cash-on-hand states
-# 		# using C[:,it+1] and M[:,it+1], find c(m,it)
-
-# 		tmpx = [0.0; m.M[:,it+1] ] 
-# 		# you need to basically find a_low such that cons = 0
-# 		# tmpx = [0.0; m.M[:,it+1] ] 
-# 		tmpy = [0.0; m.C[:,it+1] ]
-# 		for ia in 1:p.na
-# 			for iy in 1:p.ny
-# 				m.cnext[ia+p.na*(iy-1)] = linearapprox(tmpx,tmpy,m.mnext[ia+p.na*(iy-1)],1,p.na)
-# 			end
-# 		end
-
-# 		# get expected marginal value of saving: RHS of euler equation
-# 		# beta * R * E[ u'(c_{t+1}) ] 
-# 		Eu = p.R * p.beta .* up(m.cnext,p) * m.ywgt
-
-# 		# get optimal consumption today from euler equation: invert marginal utility
-# 		m.C[:,it] = iup(Eu,p)
-
-# 		# floor consumption
-# 		m.C[m.C[:,it].<p.cfloor,it] = p.cfloor
-
-
-# 		# get endogenous grid today
-# 		m.M[:,it] = m.C[:,it] .+ m.avec
-
-# 		# compute value function
-# 		# ======================
-
-# 		# expected value function (na,ny)
-# 		fill!(m.ev,NaN)
-# 		# dont: don't interpolate anything.
-# 		if it==(p.nT-1)
-# 			dont = trues(size(m.mnext))
-# 		else
-# 			dont = m.mnext .< m.M[1,it+1]	# wherever potential next period's cash on hand (m.mnext) is less than the lowest grid point of the endogenous grid next period (m.M), the agent will be credit constrained and will be saving zero (m.EV[1,it+1])
-# 		end
-
-# 		vv = m.V[:,it+1]
-# 		tmpx = m.M[:,it+1]  
-# 		for ia in 1:p.na
-# 			for iy in 1:p.ny
-# 				idx = ia+p.na*(iy-1)
-# 				if dont[idx]
-# 					m.ev[idx] = u(m.mnext[idx],p) + p.beta * m.Vzero[it+1]
-# 				else
-# 					m.ev[idx] = linearapprox(tmpx,vv,m.mnext[idx],1,p.na)
-# 				end
-# 			end
-# 		end
-# 		ev = m.ev * m.ywgt
-# 		# if abs(m.avec[1]) > 1e-6
-# 		# 	error("first element of avec is assumed to be zero: it's not!")
-# 		# end
-# 		m.Vzero[it] = ev[1] # save expected value of saving zero in first element.
-# 		m.V[:,it]  = u(m.C[:,it],p) + p.beta * ev 
-# 	end
-# end
-
-
-
 # endogenous grid method for AR1 model
 function EGM!(m::AR1Model,p::Param)
+
+	set!(m.M[it],[p.a_high/2;p.a_high])	
+	set!(m.C[it],[p.a_high/2;p.a_high])	
+	set!(m.V[it],u(v(m.C[it][1]),p) + p.beta * 0.0)   # future value in last period: 0.0
+
+	# bounds
+	set_bound!(m.M[it],0.0)	# here you decide whether one can die in debt or not
+	# set_bound!(m.M[it],m.avec[it][1]*p.R)	# here you decide whether one can die in debt or not
+	set_bound!(m.C[it],p.cfloor)
+	set_bound!(m.V[it],0.0)
+
 
 	# final period: consume everything.
 	m.M[:,:,p.nT] = repmat(m.avec,1,p.ny)
@@ -428,87 +346,6 @@ function EGM!(m::AR1Model,p::Param)
 	end  # age
 end
 
-
-# endogenous grid method for negative borrowing constraint
-function EGM!(m::iidDebtModel,p::Param)
-
-	# final period: consume everything.
-
-	it = p.nT
-	m.M[:,p.nT] = m.avec[:,p.nT]
-	m.C[:,p.nT] = m.avec[:,p.nT]
-	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
-
-	m.V[:,p.nT] = u(m.C[:,p.nT],p) + p.beta * 0.0
-
-	# preceding periods
-	for it in (p.nT-1):-1:1
-
-
-		# interpolate optimal consumption from next period on all cash-on-hand states
-		# using C[:,it+1] and M[:,it+1], find c(m,it)
-		mnext = m.mnext[:,:,it]
-
-		tmpx = [m.bounds[it+1], m.M[:,it+1] ]   # m.bounds[it+1] is the borrowing limit at age it+1
-		tmpy = [0.0, m.C[:,it+1] ]   # cons always bounded by zero
-		for ia in 1:p.na
-			for iy in 1:p.ny
-				m.cnext[ia+p.na*(iy-1)] = linearapprox(tmpx,tmpy,mnext[ia+p.na*(iy-1)])
-			end
-		end
-
-		# get expected marginal value of saving: RHS of euler equation
-		# beta * R * E[ u'(c_{t+1}) ] 
-		Eu = p.R * p.beta .* up(m.cnext,p) * m.ywgt
-
-		# get optimal consumption today from euler equation: invert marginal utility
-		m.C[:,it] = iup(Eu,p)
-
-		# floor consumption
-		m.C[m.C[:,it].<p.cfloor,it] = p.cfloor
-
-
-		# get endogenous grid today
-		# consumption + end-of-period assets
-		m.M[:,it] = m.C[:,it] .+ m.avec[:,it+1]
-
-		# compute value function
-		# ======================
-
-		dont = m.dont[:,:,it]
-
-		# expected value function (na,ny)
-		fill!(m.ev,NaN)
-		# dont: don't interpolate anything.
-		if it==(p.nT-1)
-			dont = trues((p.na,p.ny))
-		else
-			dont = mnext .< m.M[1,it+1]	# wherever potential next period's cash on hand (m.mnext) is less than the lowest grid point of the endogenous grid next period (m.M), the agent will be credit constrained and will be saving zero (m.EV[1,it+1])
-		end
-
-		vv = m.V[:,it+1]
-		tmpx = m.M[:,it+1]  
-		for ia in 1:p.na
-			for iy in 1:p.ny
-				idx = ia+p.na*(iy-1)
-				if dont[idx]
-					m.ev[idx] = u(m.cnext[idx],p) + p.beta * m.Vzero[it+1]		# CRUCIAL: use next period's consumption function! cannot just use mnext as was the case with a zero borrowing constraint! mnext[1] could be a negative number here!
-				else
-					m.ev[idx] = linearapprox(tmpx,vv,mnext[idx])
-				end
-			end
-		end
-		ev = m.ev * m.ywgt
-		# if abs(m.avec[1]) > 1e-6
-		# 	error("first element of avec is assumed to be zero: it's not!")
-		# end
-		m.Vzero[it] = ev[1] # save expected value of borrowing the maximal amount.
-		m.V[:,it]  = u(m.C[:,it],p) + p.beta * ev 
-
-		m.dont[:,:,it] = dont 
-
-	end
-end
 
 # solving the euler equation
 function Euler!(m::iidModel,p::Param)

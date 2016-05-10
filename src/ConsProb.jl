@@ -33,6 +33,7 @@ module ConsProb
 	include(joinpath("Models","envelope.jl"))
 	include(joinpath("Models","model-defs.jl"))
 	include(joinpath("Models","utils.jl"))
+	include(joinpath("Models","accelerator.jl"))
 	include(joinpath("Standard","solutions.jl"))
 	include(joinpath("Dchoice","d-funs.jl"))
 	include(joinpath("plots.jl"))

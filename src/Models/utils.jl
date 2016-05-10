@@ -148,7 +148,9 @@ function income(shock::Float64,it::Int,p::Param)
 		return 0.0
 	else
 		age = it + 19
-		return exp( 1.5 + age*0.04 - 0.0004*(age^2) + shock)
+		# return exp( 1.5 + age*0.04 - 0.0004*(age^2) + shock)
+		return exp( shock)
+		# return shock
 	end
 end
 
@@ -211,7 +213,7 @@ function linearapprox(x::Vector{Float64},y::Vector{Float64},xi::Float64,lo::Int,
 	elseif xi < x[1]
 		# get linear approx below
 		@inbounds r = y[1] + (y[2] - y[1]) * (xi - x[1])  / (x[2] - x[1])
-		println("linearapprox: return $r")
+		# println("linearapprox: return $r")
 		return r
 	end
 	if xi == x[n]
