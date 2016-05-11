@@ -22,8 +22,34 @@ function EGM!(m::iidDModel,p::Param)
 end
 
 
+# timing: 
+# assumption is that there is a 1 period lag in work choices.
+# assumption is that there is a 1 period lag in work choices.
+# 1. enter period t with m(t) = R*[a(t-1) + work(t-1)*y(t-1)]
+
+# 1. period t+1 cash in hand is m(t+1) = R*a(t) + work(t+1)*y(t-1)
+
+# 2. consume c(t)
+# 3. choose work: work(t)
+# 4. end-of-period assets: a(t) = m(t) - c(t)
+# 		* a(t) is a function of work(t-1), or more in general, of the discrete choice in the previous period.
+# how does that relate to uncertainty? what is an income shock? you work today, expecting to be paid y, but actually you don't know? rubbish.
+# 
+
+
+# m(t)   = a(t) + y(t)*work + c(t)
+# m(t)   = a'(t) + c(t)
+# a'(t)  = a(t) + y(t)*work
+# m(t)   = a'(t)
+
+# m(t)   = a(t) + c(t)
+# m(t+1) = R * a(t) + work(t) * y(t)
+# what if your next period cash on hand depends on the discrete choice NEXT PERIOD?
+
+
 function d_EGM!(m::iidDModel,p::Param,it::Int)
 	for id in 1:p.nD
+		# for today's discrete choice id
 		println("id: $id")
 		working = convert(Bool,id - 1)
 
@@ -107,6 +133,7 @@ function d_EGM!(m::iidDModel,p::Param,it::Int)
 				end
 			end
 			# remember that mm1 is next period's cash on hand if TODAY discrete choice is id (e.g. work)
+			# m1 = 
 			ev = m.ev * m.ywgt
 			# set value on bound
 			set_vbound!(m.v,it,id,ev[1])
