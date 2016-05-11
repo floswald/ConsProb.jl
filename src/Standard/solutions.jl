@@ -152,11 +152,11 @@ function findLowestA(p::Param,m::Vector{Float64},c::Vector{Float64},cashn::Float
 		cashn = p.cfloor + m[1] - (c[1] * (m[2]-m[1])) / (c[2] - c[1])
 	end
 	# return implied level of end-of-period asset that makes next period cash in hand = 0
-	return invcashnext(cashn,income(ylow,it+1,p),p)	# find corresponding a level
+	return invcashnext(cashn,ylow,p)	# find corresponding a level
 end
 
 """
-	fillAvec!(m::Model,p::Param,it::Int)
+	fillAvec!(m::iidModel,p::Param,it::Int)
 
 Fill end-of-period asset vector avec with feasible sequence in period `it`.
 
@@ -165,13 +165,37 @@ Fill end-of-period asset vector avec with feasible sequence in period `it`.
 julia> fillAvec!(m,3)
 ```
 """
-function fillAvec!(m::Model,p::Param,it::Int)
+function fillAvec!(m::iidModel,p::Param,it::Int)
 	a = 0.0
 	# if lower bound of avec[it] < 0, need to find lowest feasible a.
 	x = cashnext(m.avec[it][1],income(m.yvec[1],it+1,p),p)	
 	if x < a
 		# fill with grid from a to a_upper
-		a = findLowestA(m,x,p,it)
+		a = findLowestA(p,vb(m.M[it+1]),vb(m.C[it+1]),x,income(m.yvec[1],it+1,p),it)
+		m.avec[it] = scaleGrid(a,p.a_high,p.na)
+		# println("fillAvec scaling: $(m.avec[it])")
+	else
+		# don't do anything: all set
+	end
+end
+
+"""
+	fillAvec!(m::AR1Model,p::Param,iy::Int,it::Int)
+
+Fill end-of-period asset vector avec with feasible sequence in period `it`.
+
+# Examples
+```julia
+julia> fillAvec!(m,3)
+```
+"""
+function fillAvec!(m::AR1Model,p::Param,iy::Int,it::Int)
+	a = 0.0
+	# if lower bound of avec[it] < 0, need to find lowest feasible a.
+	x = cashnext(m.avec[it][1],income(m.yvec[1],it+1,p),p)	
+	if x < a
+		# fill with grid from a to a_upper
+		a = findLowestA(p,vb(m.M[iy,it+1]),vb(m.C[iy,it+1]),x,income(m.yvec[1],it+1,p),it)
 		m.avec[it] = scaleGrid(a,p.a_high,p.na)
 		# println("fillAvec scaling: $(m.avec[it])")
 	else
@@ -308,7 +332,7 @@ function EGM!(m::AR1Model,p::Param)
 
 			# next period's income index
 			for iiy in 1:p.ny
-				fillAvec!(m,p,it)
+				fillAvec!(m,p,iy,it)
 				# find lowest feasible asset if allow for negative assets
 				# findLowestA(p,vb(m.M[:,iiy,it+1]),vb(m.C[:,iiy,it+1]),cashn,ylow,it)
 				tmpx = [0.0; m.M[:,iiy,it+1] ] 
