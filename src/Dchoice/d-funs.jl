@@ -21,10 +21,28 @@ function EGM!(m::iidDModel,p::Param)
 
 end
 
+# original assumption in DC-EGM:
+# M(t+1) = R*a(t) + y(t+1) * work(t)
+# i.e. next period's cash on hand depends on this periods' choice to work or not.
+# this is very unnatural when thinking of selling a house, for example:
+
+# M(t+1) = R*a(t) + p(t+1) * sell(t)
+
+# noone would sell without knowing the exact price.
+
+# solution:
+# define end of period assets a(t) as a function of the current state.
+# a[p,y] = a(t) + p + y
+# then
+# m(t+1) = R(a(t) + p + y)
 
 # timing: 
 # assumption is that there is a 1 period lag in work choices.
-# assumption is that there is a 1 period lag in work choices.
+# denote work(t)=1 as the decision to CONTINUE to work next period
+# denote work(t)=0 as the decision NOT to CONTINUE to work.
+# then m(t) = R*a(t-1) + y_t * work(t-1)
+
+# what if d(t) is choice to sell a house or not?
 # 1. enter period t with m(t) = R*[a(t-1) + work(t-1)*y(t-1)]
 
 # 1. period t+1 cash in hand is m(t+1) = R*a(t) + work(t+1)*y(t-1)

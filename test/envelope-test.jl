@@ -39,7 +39,30 @@ facts("Bfun.") do
 		@fact ConsProb.vb(b2[1]) --> [0.8;x2]
 		@fact ConsProb.vb(b2[2]) --> [ly;y]
 
-		
+	end
+
+	context("methods for Arrays of Bfun") do
+
+		b = [Bfun(zeros(j+(i-1)*3),j+(i-1)*3) for j=1:3, i=1:2]
+		for j=1:3,i=1:2
+			@fact ConsProb.v(b[j,i]) --> zeros(j+(i-1)*3)
+			@fact ConsProb.b(b[j,i]) --> j+(i-1)*3
+			@fact ConsProb.vb(b[j,i]) --> [j+(i-1)*3;zeros(j+(i-1)*3)]
+		end
+
+		x = rand(4)
+		y = rand()
+		ConsProb.set!(b,x)
+		ConsProb.set_bound!(b,y)
+		for j=1:3,i=1:2
+			@fact ConsProb.v(b[j,i]) --> x
+			@fact ConsProb.b(b[j,i]) --> y
+			@fact ConsProb.vb(b[j,i]) --> [y;x]
+		end
+
+
+
+
 	end
 
 end

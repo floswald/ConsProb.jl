@@ -122,6 +122,38 @@ function findLowestA(m::Model,cashn::Float64,p::Param,it::Int)
 	return invcashnext(cashn,income(m.yvec[1],it+1,p),p)	# find corresponding a level
 end
 
+"""
+	findLowestA(mod::Model,m::Vector{Float64},c::Vector{Float64},a::Float64,it::Int)
+
+Find lowest feasible end end-of-period asset in period `it`. 
+
+# Examples
+```julia
+julia> findLowestA(m,-1.1,8)
+-0.3
+```
+"""
+function findLowestA(p::Param,m::Vector{Float64},c::Vector{Float64},cashn::Float64,ylow::Float64,it::Int)
+# take the lowest income state and check if positive consumption
+# this assumes that ALL income states are feasible next period
+	
+	# tmpx = [0.0; m.M[:,it+1] ] 
+	# tmpx = vb(m.M[it+1])	# get next periods cash on hand withbound
+	# you need to basically find a_low such that cons = 0
+	# tmpx = [0.0; m.M[:,it+1] ] 
+	# tmpy = vb(m.C[it+1])	# get next periods consumption without bound
+	# println("m = $tmpx")
+	# println("c = $tmpy")
+
+	# check lowest cash in hand
+	# if implied consumption is negative
+	if linearapprox(m,c,cashn) < 0
+		# find cashnext such that c=p.cfloor
+		cashn = p.cfloor + m[1] - (c[1] * (m[2]-m[1])) / (c[2] - c[1])
+	end
+	# return implied level of end-of-period asset that makes next period cash in hand = 0
+	return invcashnext(cashn,income(ylow,it+1,p),p)	# find corresponding a level
+end
 
 """
 	fillAvec!(m::Model,p::Param,it::Int)
@@ -254,25 +286,16 @@ end
 # endogenous grid method for AR1 model
 function EGM!(m::AR1Model,p::Param)
 
-	set!(m.M[it],[p.a_high/2;p.a_high])	
-	set!(m.C[it],[p.a_high/2;p.a_high])	
-	set!(m.V[it],u(v(m.C[it][1]),p) + p.beta * 0.0)   # future value in last period: 0.0
+	# final period: consume everything.
+	it = p.nT
+	set!(m.M[:,it],[p.a_high/2;p.a_high])	
+	set!(m.C[:,it],[p.a_high/2;p.a_high])	
+	set!(m.V[:,it],u(v(m.C[it][1]),p) + p.beta * 0.0)   # future value in last period: 0.0
 
 	# bounds
-	set_bound!(m.M[it],0.0)	# here you decide whether one can die in debt or not
-	# set_bound!(m.M[it],m.avec[it][1]*p.R)	# here you decide whether one can die in debt or not
-	set_bound!(m.C[it],p.cfloor)
-	set_bound!(m.V[it],0.0)
-
-
-	# final period: consume everything.
-	m.M[:,:,p.nT] = repmat(m.avec,1,p.ny)
-	m.C[:,:,p.nT] = repmat(m.avec,1,p.ny)
-	cc = m.C[:,:,p.nT]
-	cc[cc.<p.cfloor] = p.cfloor
-	m.C[:,:,p.nT] = cc
-
-	m.V[:,:,p.nT] = u(m.C[:,:,p.nT],p) + p.beta * 0.0
+	set_bound!(m.M[:,it],0.0)	# here you decide whether one can die in debt or not
+	set_bound!(m.C[:,it],p.cfloor)
+	set_bound!(m.V[:,it],0.0)
 
 	# preceding periods
 	for it in (p.nT-1):-1:1
@@ -285,6 +308,9 @@ function EGM!(m::AR1Model,p::Param)
 
 			# next period's income index
 			for iiy in 1:p.ny
+				fillAvec!(m,p,it)
+				# find lowest feasible asset if allow for negative assets
+				# findLowestA(p,vb(m.M[:,iiy,it+1]),vb(m.C[:,iiy,it+1]),cashn,ylow,it)
 				tmpx = [0.0; m.M[:,iiy,it+1] ] 
 				tmpy = [0.0; m.C[:,iiy,it+1] ]
 				for ia in 1:p.na

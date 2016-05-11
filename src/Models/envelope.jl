@@ -24,16 +24,16 @@ function set!(x::Array{Bfun},y::Vector{Float64})
 		set!(i,y)
 	end
 end
-function set!(x::Array{Bfun},y::Vector{Float64}) 
-	for i in eachindex(x)
-		i.v = y
-	end
-end
 function set!(x::Bfun,y::LinSpace) 
 	x.v = collect(y)
 end
 function set_bound!(x::Bfun,y::Float64) 
 	x.bound = y
+end
+function set_bound!(x::Array{Bfun},y::Float64) 
+	for i in x
+		i.bound = y
+	end
 end
 
 
