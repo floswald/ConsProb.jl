@@ -55,22 +55,22 @@ function runStd()
 	# AR1 income model
 	# ================
 
-	d2 = Dict{AbstractString,Model}()
-	p = Param(mu=10.0)
+	# d2 = Dict{AbstractString,Model}()
+	# p = Param(mu=10.0)
 
-	d2["EGM"] = AR1Model(p)
-	d2["EGM"].toc = @elapsed EGM!(d2["EGM"],p)
+	# d2["EGM"] = AR1Model(p)
+	# d2["EGM"].toc = @elapsed EGM!(d2["EGM"],p)
 
-	d2["VF"] = AR1Model(p)
-	d2["VF"].toc = @elapsed VFbi!(d2["VF"],p)
+	# d2["VF"] = AR1Model(p)
+	# d2["VF"].toc = @elapsed VFbi!(d2["VF"],p)
 
-	# does it matter whether I compute the model on 
-	# current assets, given y, or
-	# cash-on-hand, given y?
-	d2["VF_a"] = AR1Model_a(p)
-	d2["VF_a"].toc = @elapsed VFbi!(d2["VF_a"],p)
+	# # does it matter whether I compute the model on 
+	# # current assets, given y, or
+	# # cash-on-hand, given y?
+	# d2["VF_a"] = AR1Model_a(p)
+	# d2["VF_a"].toc = @elapsed VFbi!(d2["VF_a"],p)
 
-	D["AR1"] = d2
+	# D["AR1"] = d2
 
 	# # plot results
 	# # plots(EGMmod,VFmod,VFmod_a,p,1)  # plot period 1
@@ -424,6 +424,10 @@ function VFbi!(m::iidModel,p::Param)
 	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
 	m.V[:,p.nT] = u(m.C[:,p.nT],p)
 
+	# w = zeros(p.na)
+	# v = 0.0
+	# i = 0
+
 	# preceding periods
 	for it in (p.nT-1):-1:1
 
@@ -436,6 +440,16 @@ function VFbi!(m::iidModel,p::Param)
 			x = optimize((x)->VFobj(x,cash,m.V[:,it+1],m,p,m.ywgt,it),p.a_low-100*eps(),cash)
 			m.V[ia,it] = -x.f_minimum
 			m.C[ia,it] = x.minimum
+
+			# alternative: grid search
+
+			# cvals = collect(linspace(p.a_low,cash,p.na))
+			# for iia in 1:p.na
+			# 	w[iia] = VFobj(cvals[iia],cash,m.V[:,it+1],m,p,m.ywgt,it)
+			# end
+			# v,i = findmin(w)
+			# m.V[ia,it] = -v
+			# m.C[ia,it] = cvals[i]
 		end
 	end
 end
