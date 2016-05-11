@@ -25,13 +25,13 @@ function runStd()
 	p = Param(mu=10.0)
 
 	# solve by standard euler equation root finding
-	d["Euler"] = iidModel(p)
-	# warm up the JIT
-	Euler!(d["Euler"],p)
-	# reset el
-	d["Euler"] = iidModel(p)
-	# measure time
-	d["Euler"].toc = @elapsed Euler!(d["Euler"],p)
+	# d["Euler"] = iidModel(p)
+	# # warm up the JIT
+	# Euler!(d["Euler"],p)
+	# # reset el
+	# d["Euler"] = iidModel(p)
+	# # measure time
+	# d["Euler"].toc = @elapsed Euler!(d["Euler"],p)
 
 
 
@@ -55,22 +55,22 @@ function runStd()
 	# AR1 income model
 	# ================
 
-	d2 = Dict{AbstractString,Model}()
-	p = Param(mu=10.0)
+	# d2 = Dict{AbstractString,Model}()
+	# p = Param(mu=10.0)
 
-	d2["EGM"] = AR1Model(p)
-	d2["EGM"].toc = @elapsed EGM!(d2["EGM"],p)
+	# d2["EGM"] = AR1Model(p)
+	# d2["EGM"].toc = @elapsed EGM!(d2["EGM"],p)
 
-	d2["VF"] = AR1Model(p)
-	d2["VF"].toc = @elapsed VFbi!(d2["VF"],p)
+	# d2["VF"] = AR1Model(p)
+	# d2["VF"].toc = @elapsed VFbi!(d2["VF"],p)
 
-	# does it matter whether I compute the model on 
-	# current assets, given y, or
-	# cash-on-hand, given y?
-	d2["VF_a"] = AR1Model_a(p)
-	d2["VF_a"].toc = @elapsed VFbi!(d2["VF_a"],p)
+	# # does it matter whether I compute the model on 
+	# # current assets, given y, or
+	# # cash-on-hand, given y?
+	# d2["VF_a"] = AR1Model_a(p)
+	# d2["VF_a"].toc = @elapsed VFbi!(d2["VF_a"],p)
 
-	D["AR1"] = d2
+	# D["AR1"] = d2
 
 	# # plot results
 	# # plots(EGMmod,VFmod,VFmod_a,p,1)  # plot period 1

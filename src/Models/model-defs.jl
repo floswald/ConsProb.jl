@@ -74,7 +74,7 @@ type Param
 		beta                  = 0.95
 		R                     = 1.05
 
-		na     = 100
+		na     = 200
 		ny     = 50
 		nT     = 6
 		a_high = 50.0
