@@ -331,7 +331,7 @@ uses cash-on-hand m=y+a and current income state y as state variables. Tracking 
 type AR1Model <: Model
 
 	# computation grids
-	avec::Vector{Float64}
+	avec::Array{Vector{Float64}}	# different avec in each period possible
 	zvec::Vector{Float64}   # shock support
 	yvec::Vector{Float64}   # income support
 	ywgt::Matrix{Float64}   # transition matrix for income
@@ -357,7 +357,7 @@ type AR1Model <: Model
 	"""
 	function AR1Model(p::Param)
 
-		avec = linspace(p.a_low,p.a_high,p.na)
+		avec          = [scaleGrid(p.a_low,p.a_high,p.na,2) for i=1:p.nT]
 
 		# get grid and transition matrix for z
 		z,ywgt = rouwenhorst(p.rho_z,0.0,p.eps_z,p.ny)
@@ -365,7 +365,8 @@ type AR1Model <: Model
 		yvec = z + p.mu
 
 		# precompute next period's cash on hand.
-		mnext = Float64[p.R * avec[i] + yvec[j] for i=1:p.na, j=1:p.ny]
+		# mnext = Float64[p.R * avec[i] + yvec[j] for i=1:p.na, j=1:p.ny]
+		mnext = zeros(p.na,p.ny)
 		cnext = zeros(p.na,p.ny)
 		ev = zeros(p.na,p.ny)
 

@@ -36,10 +36,10 @@ function runStd()
 
 
 	# solve maximizing the value function backward iteration
-	d["VF"] = iidModel(p)
-	VFbi!(d["VF"],p)
-	d["VF"] = iidModel(p)
-	d["VF"].toc = @elapsed VFbi!(d["VF"],p)
+	# d["VF"] = iidModel(p)
+	# VFbi!(d["VF"],p)
+	# d["VF"] = iidModel(p)
+	# d["VF"].toc = @elapsed VFbi!(d["VF"],p)
 
 	# solve by EGM
 	d["EGM"] = iidModel(p)
@@ -55,11 +55,11 @@ function runStd()
 	# AR1 income model
 	# ================
 
-	# d2 = Dict{AbstractString,Model}()
-	# p = Param(mu=10.0)
+	d2 = Dict{AbstractString,Model}()
+	p = Param(mu=10.0)
 
-	# d2["EGM"] = AR1Model(p)
-	# d2["EGM"].toc = @elapsed EGM!(d2["EGM"],p)
+	d2["EGM"] = AR1Model(p)
+	d2["EGM"].toc = @elapsed EGM!(d2["EGM"],p)
 
 	# d2["VF"] = AR1Model(p)
 	# d2["VF"].toc = @elapsed VFbi!(d2["VF"],p)
@@ -70,7 +70,7 @@ function runStd()
 	# d2["VF_a"] = AR1Model_a(p)
 	# d2["VF_a"].toc = @elapsed VFbi!(d2["VF_a"],p)
 
-	# D["AR1"] = d2
+	D["AR1"] = d2
 
 	# # plot results
 	# # plots(EGMmod,VFmod,VFmod_a,p,1)  # plot period 1
@@ -192,10 +192,10 @@ julia> fillAvec!(m,3)
 function fillAvec!(m::AR1Model,p::Param,iy::Int,it::Int)
 	a = 0.0
 	# if lower bound of avec[it] < 0, need to find lowest feasible a.
-	x = cashnext(m.avec[it][1],income(m.yvec[1],it+1,p),p)	
+	x = cashnext(m.avec[it][1],income(m.yvec[iy],it+1,p),p)	
 	if x < a
 		# fill with grid from a to a_upper
-		a = findLowestA(p,vb(m.M[iy,it+1]),vb(m.C[iy,it+1]),x,income(m.yvec[1],it+1,p),it)
+		a = findLowestA(p,vb(m.M[iy,it+1]),vb(m.C[iy,it+1]),x,income(m.yvec[iy],it+1,p),it)
 		m.avec[it] = scaleGrid(a,p.a_high,p.na)
 		# println("fillAvec scaling: $(m.avec[it])")
 	else
@@ -203,6 +203,12 @@ function fillAvec!(m::AR1Model,p::Param,iy::Int,it::Int)
 	end
 end
 
+
+"""
+	fillCnext!(m::iidModel,p::Param,it::Int)
+
+Fill next period's consumption vector at all possible values. First computes next period cash-on-hand at all values of the shock, then interpolates consumption at that level, using next period's m and c.
+"""
 function fillCnext!(m::iidModel,p::Param,it::Int)
 	idx = 0
 	tmpx = vb(m.M[it+1])	# get next periods cash on hand with bound
@@ -217,6 +223,29 @@ function fillCnext!(m::iidModel,p::Param,it::Int)
 end
 
 """
+	fillCnext!(m::AR1Model,p::Param,iy::Int,it::Int)
+
+Fill next period's consumption vector at all possible values. First computes next period cash-on-hand at all values of the shock, then interpolates consumption at that level, using next period's m and c.
+"""
+function fillCnext!(m::AR1Model,p::Param,it::Int)
+	idx = 0
+	acc = Accelerator(1)
+	for iiy in 1:p.ny
+		tmpx = vb(m.M[iiy,it+1])	# get next periods cash on hand with bound
+		tmpy = vb(m.C[iiy,it+1])	# get next periods consumption 
+		resetAccel!(acc)
+		for ia in 1:p.na
+			# idx = ia+p.na*(iiy-1)
+			# inverted index!
+			idx = iiy+p.ny*(ia-1)
+			m.mnext[idx] = cashnext(m.avec[it][ia],income(m.yvec[iiy],it+1,p),p)
+			m.cnext[idx] = linearapprox(tmpx,tmpy,m.mnext[idx],length(tmpx),acc)
+		end
+	end
+end
+
+
+"""
 	RHS(m::iidModel,p::Param,it::Int)
 
 Compute the RHS of the Euler Equation.
@@ -228,6 +257,21 @@ Computes the right hand side of the Eurler Equation in the `iidModel` case.
 function RHS(m::iidModel,p::Param,it::Int)
 	p.R * p.beta .* up(m.cnext,p) * m.ywgt
 end
+
+"""
+	RHS(m::AR1Model,p::Param,iy::Int,it::Int)
+
+Compute the RHS of the Euler Equation in an `AR1Model`.
+
+# Details
+
+Computes the right hand side of the Eurler Equation in the `AR1Model` case. 
+"""
+function RHS(m::AR1Model,p::Param,iy::Int,it::Int)
+	p.R * p.beta .* m.ywgt[iy,:] * transpose(up(m.cnext,p))
+end
+
+
 
 
 """
@@ -307,6 +351,44 @@ function computeVfun!(m::iidModel,p::Param,it::Int)
 	set!(m.V[it],u(v(m.C[it]),p) + p.beta * ev)
 end
 
+
+function computeVfun!(m::AR1Model,p::Param,iy::Int,it::Int)
+
+	# expected value function (na,ny)
+	fill!(m.ev,NaN)
+	# dont: don't interpolate anything.
+	if it==(p.nT-1)
+		# if next period is final period, don't have to worry about
+		# next (i.e. period T+1) savings
+		dont = trues(size(m.mnext))
+	else
+		dont = m.mnext .< v(m.M[iy,it+1])[1]	# wherever potential next period's cash on hand (m.mnext) is less than the lowest grid point of the endogenous grid next period (m.M), the agent will be credit constrained and will be saving zero (here stored in m.Vzero[iy,it+1])
+	end
+
+	# for next period's income state
+	for iiy in 1:p.ny
+		tmpx = v(m.M[iiy,it+1]  )
+		vv   = v(m.V[iiy,it+1])
+		for ia in 1:p.na
+			idx = ia+p.na*(iiy-1)
+			# idx = ia+p.na*(iy-1)
+			if dont[idx]
+				m.ev[idx] = u(m.cnext[idx],p) + p.beta * b(m.V[iiy,it+1])
+			else
+				m.ev[idx] = linearapprox(tmpx,vv,m.mnext[idx])
+			end
+		end
+	end
+	# ev = transpose(m.ywgt[iy,:] * transpose( m.ev ))
+	ev = m.ev * m.ywgt[iy,:][:] 
+	set_bound!(m.V[iy,it],ev[1]) # save expected value of being on lower bound.
+	set!(m.V[iy,it], u(v(m.C[iy,it]),p) .+ p.beta * ev)
+end
+
+
+### AR1 Models
+### these condition on a current income state when computing the expectation
+
 # endogenous grid method for AR1 model
 function EGM!(m::AR1Model,p::Param)
 
@@ -314,7 +396,7 @@ function EGM!(m::AR1Model,p::Param)
 	it = p.nT
 	set!(m.M[:,it],[p.a_high/2;p.a_high])	
 	set!(m.C[:,it],[p.a_high/2;p.a_high])	
-	set!(m.V[:,it],u(v(m.C[it][1]),p) + p.beta * 0.0)   # future value in last period: 0.0
+	set!(m.V[:,it],u(v(m.C[1,it]),p) + p.beta * 0.0)   # future value in last period: 0.0
 
 	# bounds
 	set_bound!(m.M[:,it],0.0)	# here you decide whether one can die in debt or not
@@ -323,75 +405,87 @@ function EGM!(m::AR1Model,p::Param)
 
 	# preceding periods
 	for it in (p.nT-1):-1:1
+	println("period $it")
 
 		# conditional on current income state
+		fillAvec!(m,p,1,it)	# lowest feasible end of period asset is such that in the lowest income state tomorrow (i.e. iy = 1), you can get zero consumption.
+
 		for iy in 1:p.ny
 
 			# interpolate optimal consumption from next period on all cash-on-hand states
 			# using C[:,it+1] and M[:,it+1], find c(m,it)
 
+			fillCnext!(m,p,it)
 			# next period's income index
-			for iiy in 1:p.ny
-				fillAvec!(m,p,iy,it)
+			# for iiy in 1:p.ny
 				# find lowest feasible asset if allow for negative assets
 				# findLowestA(p,vb(m.M[:,iiy,it+1]),vb(m.C[:,iiy,it+1]),cashn,ylow,it)
-				tmpx = [0.0; m.M[:,iiy,it+1] ] 
-				tmpy = [0.0; m.C[:,iiy,it+1] ]
-				for ia in 1:p.na
-					m.cnext[ia+p.na*(iiy-1)] = linearapprox(tmpx,tmpy,m.mnext[ia+p.na*(iiy-1)],1,p.na)
-					# m.cnext[ia+p.na*(iiy-1)] = linearapprox(tmpx,tmpy,m.mnext[ia+p.na*(iy-1)],1,p.na)
-				end
-			end
+				# println("")
+				# println("")
+				# println("mnext = $(m.mnext)")
+				# println("")
+				# println("cnext = $(m.cnext)")
+				# println("")
+				# tmpx = [0.0; m.M[:,iiy,it+1] ] 
+				# tmpy = [0.0; m.C[:,iiy,it+1] ]
+				# for ia in 1:p.na
+				# 	m.cnext[ia+p.na*(iiy-1)] = linearapprox(tmpx,tmpy,m.mnext[ia+p.na*(iiy-1)],1,p.na)
+				# 	# m.cnext[ia+p.na*(iiy-1)] = linearapprox(tmpx,tmpy,m.mnext[ia+p.na*(iy-1)],1,p.na)
+				# end
+			# end
 
 			# get expected marginal value of saving: RHS of euler equation
 			# beta * R * E[ u'(c_{t+1}) | y_t] 
-			Eu = p.R * p.beta .* m.ywgt[iy,:] * transpose(up(m.cnext,p))
+			Eu = RHS(m,p,iy,it)
 
 			# get optimal consumption today from euler equation: invert marginal utility
-			m.C[:,iy,it] = iup(Eu,p)
+			set!(m.C[iy,it],iup(Eu,p))
 			
 			# floor consumption
-			m.C[m.C[:,iy,it].<p.cfloor,iy,it] = p.cfloor
+			# m.C[m.C[:,iy,it].<p.cfloor,iy,it] = p.cfloor
 
 			# get endogenous grid today
-			m.M[:,iy,it] = m.C[:,iy,it] .+ m.avec
+			set!(m.M[iy,it],v(m.C[iy,it]) + m.avec[it])
+			set_bound!(m.M[iy,it],m.avec[it][1])
 
+			# compute value function
+			computeVfun!(m,p,iy,it)
 
 			# compute value function
 			# ======================
 
-			# expected value function (na,ny)
-			fill!(m.ev,NaN)
-			# dont: don't interpolate anything.
-			if it==(p.nT-1)
-				# if next period is final period, don't have to worry about
-				# next (i.e. period T+1) savings
-				dont = trues(size(m.mnext))
-			else
-				dont = m.mnext .< m.M[1,iy,it+1]	# wherever potential next period's cash on hand (m.mnext) is less than the lowest grid point of the endogenous grid next period (m.M), the agent will be credit constrained and will be saving zero (here stored in m.Vzero[iy,it+1])
-			end
+			# # expected value function (na,ny)
+			# fill!(m.ev,NaN)
+			# # dont: don't interpolate anything.
+			# if it==(p.nT-1)
+			# 	# if next period is final period, don't have to worry about
+			# 	# next (i.e. period T+1) savings
+			# 	dont = trues(size(m.mnext))
+			# else
+			# 	dont = m.mnext .< m.M[1,iy,it+1]	# wherever potential next period's cash on hand (m.mnext) is less than the lowest grid point of the endogenous grid next period (m.M), the agent will be credit constrained and will be saving zero (here stored in m.Vzero[iy,it+1])
+			# end
 
-			# for next period's income state
-			for iiy in 1:p.ny
-				tmpx = m.M[:,iiy,it+1]  
-				vv   = m.V[:,iiy,it+1]
-				for ia in 1:p.na
-					idx = ia+p.na*(iiy-1)
-					# idx = ia+p.na*(iy-1)
-					if dont[idx]
-						m.ev[idx] = u(m.mnext[idx],p) + p.beta * m.Vzero[iiy,it+1]
-					else
-						m.ev[idx] = linearapprox(tmpx,vv,m.mnext[idx],1,p.na)
-					end
-				end
-			end
-			# ev = transpose(m.ywgt[iy,:] * transpose( m.ev ))
-			ev = m.ev * m.ywgt[iy,:][:] 
-			if abs(m.avec[1]) > 1e-6
-				error("first element of avec is assumed to be zero: it's not!")
-			end
-			m.Vzero[iy,it] = ev[1] # save expected value of saving zero in first element.
-			m.V[:,iy,it]  = u(m.C[:,iy,it],p) .+ p.beta * ev
+			# # for next period's income state
+			# for iiy in 1:p.ny
+			# 	tmpx = m.M[:,iiy,it+1]  
+			# 	vv   = m.V[:,iiy,it+1]
+			# 	for ia in 1:p.na
+			# 		idx = ia+p.na*(iiy-1)
+			# 		# idx = ia+p.na*(iy-1)
+			# 		if dont[idx]
+			# 			m.ev[idx] = u(m.mnext[idx],p) + p.beta * m.Vzero[iiy,it+1]
+			# 		else
+			# 			m.ev[idx] = linearapprox(tmpx,vv,m.mnext[idx],1,p.na)
+			# 		end
+			# 	end
+			# end
+			# # ev = transpose(m.ywgt[iy,:] * transpose( m.ev ))
+			# ev = m.ev * m.ywgt[iy,:][:] 
+			# if abs(m.avec[1]) > 1e-6
+			# 	error("first element of avec is assumed to be zero: it's not!")
+			# end
+			# m.Vzero[iy,it] = ev[1] # save expected value of saving zero in first element.
+			# m.V[:,iy,it]  = u(m.C[:,iy,it],p) .+ p.beta * ev
 		end  # current income
 	end  # age
 end
@@ -400,7 +494,11 @@ end
 # solving the euler equation
 function Euler!(m::iidModel,p::Param)
 
+	it = p.nT
 	# final period: consume everything.
+	set!(m.M[it],[p.a_high/2;p.a_high])	
+	set!(m.C[it],[p.a_high/2;p.a_high])	
+	set!(m.V[it],u(v(m.C[it]),p) + p.beta * 0.0)   # future value in last period: 0.0
 	m.M[:,p.nT] = m.avec 
 	m.C[:,p.nT] = m.avec
 	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
