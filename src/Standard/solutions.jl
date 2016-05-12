@@ -496,23 +496,29 @@ function Euler!(m::iidModel,p::Param)
 
 	it = p.nT
 	# final period: consume everything.
-	set!(m.M[it],[p.a_high/2;p.a_high])	
-	set!(m.C[it],[p.a_high/2;p.a_high])	
+	set!(m.M[it],m.avec[1])	
+	set!(m.C[it],collect(linspace(p.cfloor,p.a_high,p.na)))	
 	set!(m.V[it],u(v(m.C[it]),p) + p.beta * 0.0)   # future value in last period: 0.0
-	m.M[:,p.nT] = m.avec 
-	m.C[:,p.nT] = m.avec
-	m.C[m.C[:,p.nT].<p.cfloor,p.nT] = p.cfloor
-	m.V[:,p.nT] = u(m.C[:,p.nT],p) + p.beta * 0.0
 
 	# preceding periods
 	for it in (p.nT-1):-1:1
+	println("period = $it")
+
+		fillAvec!(m,p,it)
+		x = cashnext(m.avec[it][1],income(m.yvec[1],it+1,p),p)	
+		if x < 0
+			# fill with grid from a to a_upper
+			a = findLowestA(p,m.avec[it+1],v(m.C[it+1]),x,income(m.yvec[1],it+1,p),it)
+			m.avec[it] = scaleGrid(a,p.a_high,p.na)
+			# println("fillAvec scaling: $(m.avec[it])")
+		end
 
 		for ia in 1:p.na
 
-			cash = m.avec[ia] 	# current cash on hand
+			cash = m.avec[it][ia] 	# current cash on hand
 
 			# consumption equal to cash on hand
-			res = EulerResid(cash,cash,m.C[:,it+1],p,m,it)
+			res = EulerResid(cash,cash,v(m.C[it+1]),p,m,it)
 
 			# this is an implication of 
 			# equation (6) in Deaton ECTA (1991):
@@ -530,25 +536,26 @@ function Euler!(m::iidModel,p::Param)
 			# u'(m_t) > u'(c_{t+1}), and therefore
 			# u'(c_t) = max[ u'(m_t), beta * R * u'(c_{t+1}) ] implies
 			# that this consumer is borrowing constrained and consumes all cash in hand.
-			if res < 0
-				m.C[ia,it] = cash
+			if res < p.a_low && p.a_low < 0
+				m.C[it].v[ia] = cash - p.a_low + p.cfloor
+			elseif res < p.a_low && p.a_low >= 0
+					m.C[it].v[ia] = cash
 			else
 				# m.C[ia,it] = fzero((x)->EulerResid(x,cash,m.C[:,it+1],p,m,it),(cash + p.a_low-0.0001)/2,[p.a_low-0.0001,cash])
 				# m.C[ia,it] = fzero((x)->EulerResid(x,cash,m.C[:,it+1],p,m,it),cash/2,[p.a_low,cash])
-				m.C[ia,it] = fzero((x)->EulerResid(x,cash,m.C[:,it+1],p,m,it),[p.a_low,cash])
+				m.C[it].v[ia] = fzero((x)->EulerResid(x,cash,v(m.C[it+1]),p,m,it),[p.cfloor,p.a_high])
 			end
-			m.S[ia,it] = (cash - m.C[ia,it])*p.R
+			println("cons[it+1] = $(m.C[it+1].v[ia])")
+			println("cons[it] = $(m.C[it].v[ia])")
+			println("cash[it] = $cash")
+			m.S[it].v[ia] = (cash - m.C[it].v[ia])*p.R
 
 			# get expected value function
-			EV = linearapprox(m.avec,m.V[:,it+1],m.S[ia,it].+ m.yvec)
+			EV = linearapprox(m.avec[1],v(m.V[it+1]),m.S[it].v[ia]+ m.yvec)
 
-			m.V[ia,it] = u(m.C[ia,it],p) + p.beta * dot(EV,m.ywgt)
+			m.V[it].v[ia] = u(m.C[it].v[ia],p) + p.beta * dot(EV,m.ywgt)
 
 		end
-		ev
-
-
-
 	end
 
 end
@@ -564,7 +571,7 @@ function EulerResid(c::Float64,cash::Float64,cplus::Vector{Float64},p::Param,m::
 	# else
 		m.m2 = p.R * (cash - c) .+ m.yvec  # (ny,1)
 		# interpolate optimal consumption c(t+1), given c(t), on each y-state
-		m.c2 = linearapprox([0;m.avec],[0;cplus],m.m2)
+		m.c2 = linearapprox(m.avec[it+1],cplus,m.m2)
 		# for iy in 1:p.ny
 		# 	# m.c2[iy] = linearapprox([0,m.avec],[0,cplus],m.m2[iy],1,p.na)
 		# 	m.c2[iy] = linearapprox(m.avec,cplus,m.m2[iy])

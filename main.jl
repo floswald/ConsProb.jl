@@ -6,16 +6,18 @@ include("src/ConsProb.jl")
 
 
 p  = ConsProb.Param(1.0,-2.0)
-# m  = ConsProb.iidModel(p)
-m  = ConsProb.AR1Model(p)
-ConsProb.EGM!(m,p)
-# for i in 1:p.nT-1
-# 	ConsProb.plot(ConsProb.v(m.M[i]),ConsProb.v(m.V[i]))
-# end
-# ConsProb.figure()
-# for i in 1:p.nT-1
-# 	ConsProb.plot(ConsProb.vb(m.M[i]),ConsProb.vb(m.C[i]))
-# end
+m  = ConsProb.iidModel(p)
+ConsProb.Euler!(m,p)
+# m  = ConsProb.AR1Model(p)
+# @profile ConsProb.EGM!(m,p)
+for i in 1:p.nT-1
+	# ConsProb.plot(ConsProb.v(m.M[i]),ConsProb.v(m.V[i]))
+	ConsProb.plot(m.avec[i],ConsProb.v(m.C[i]))
+end
+ConsProb.figure()
+for i in 1:p.nT-1
+	ConsProb.plot(ConsProb.vb(m.M[i]),ConsProb.vb(m.C[i]))
+end
 # ConsProb.xlim(-3,3)
 # ConsProb.ylim(0,3)
 
