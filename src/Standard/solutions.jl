@@ -101,25 +101,21 @@ julia> findLowestA(m,-1.1,8)
 ```
 """
 function findLowestA(m::Model,cashn::Float64,p::Param,it::Int)
-# take the lowest income state and check if positive consumption
-# this assumes that ALL income states are feasible next period
+# check if next period consumption is positive given a level of next period cash on hand
+# test is: assuming the worst case, i.e. tomorrow you get the lowest possibel income,
+# what is the smallest a(t) such that c(t+1) > 0?
 	
-	# tmpx = [0.0; m.M[:,it+1] ] 
-	tmpx = vb(m.M[it+1])	# get next periods cash on hand withbound
-	# you need to basically find a_low such that cons = 0
-	# tmpx = [0.0; m.M[:,it+1] ] 
-	tmpy = vb(m.C[it+1])	# get next periods consumption without bound
-	# println("m = $tmpx")
-	# println("c = $tmpy")
+	# prepare interpolation of c(t+1)
+	tmpx = vb(m.M[it+1])	# get next periods cash on hand with its lower bound
+	tmpy = vb(m.C[it+1])	# get next periods consumption with its lower bound
 
-	# check lowest cash in hand
-	# if implied consumption is negative
+	# if implied consumption at next period cash-on-hand cashn is negative:
 	if linearapprox(tmpx,tmpy,cashn) < 0
-		# find cashnext such that c=p.cfloor
+		# find cashnext such that c=p.cfloor > 0
 		cashn = p.cfloor + tmpx[1] - (tmpy[1] * (tmpx[2]-tmpx[1])) / (tmpy[2] - tmpy[1])
 	end
 	# return implied level of end-of-period asset that makes next period cash in hand = 0
-	return invcashnext(cashn,income(m.yvec[1],it+1,p),p)	# find corresponding a level
+	return invcashnext(cashn,income(m.yvec[1],it+1,p),p)	# find corresponding asset level
 end
 
 """
@@ -536,10 +532,8 @@ function Euler!(m::iidModel,p::Param)
 			# u'(m_t) > u'(c_{t+1}), and therefore
 			# u'(c_t) = max[ u'(m_t), beta * R * u'(c_{t+1}) ] implies
 			# that this consumer is borrowing constrained and consumes all cash in hand.
-			if res < p.a_low && p.a_low < 0
+			if res < 0
 				m.C[it].v[ia] = cash - p.a_low + p.cfloor
-			elseif res < p.a_low && p.a_low >= 0
-					m.C[it].v[ia] = cash
 			else
 				# m.C[ia,it] = fzero((x)->EulerResid(x,cash,m.C[:,it+1],p,m,it),(cash + p.a_low-0.0001)/2,[p.a_low-0.0001,cash])
 				# m.C[ia,it] = fzero((x)->EulerResid(x,cash,m.C[:,it+1],p,m,it),cash/2,[p.a_low,cash])

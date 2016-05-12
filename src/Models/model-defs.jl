@@ -76,8 +76,8 @@ type Param
 
 		na     = 200
 		ny     = 50
-		nT     = 6
-		a_high = 50.0
+		nT     = 25
+		a_high = 100.0
 		a_low  = alow
 		a_lowT  = 0.0
 		nD     = 2
@@ -117,8 +117,8 @@ type Param
 
 		na = 200
 		ny = 10
-		nT = 8
-		a_high = 300.0
+		nT = 25
+		a_high = 100.0
 		a_lowT  = 1e-6
 		a_low  = 1e-6
 		nD = 2
