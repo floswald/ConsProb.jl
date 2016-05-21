@@ -85,10 +85,10 @@ type Param
 		alpha = 2.3
 
 		# iid income uncertainty params
-		# mu = 10 	# mean income: 30K
-		# sigma = 1  # sd income
-		mu = 0 	# mean income: 30K
-		sigma = 0.25  # sd income
+		mu = 10 	# mean income: 30K
+		sigma = 1  # sd income
+		# mu = 0 	# mean income: 30K
+		# sigma = 0.25  # sd income
 
 		# AR1 income uncertainty
 		# params from Ayiagari
