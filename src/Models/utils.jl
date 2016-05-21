@@ -149,7 +149,8 @@ function income(shock::Float64,it::Int,p::Param)
 	else
 		age = it + 19
 		# return exp( 1.5 + age*0.04 - 0.0004*(age^2) + shock)
-		return exp( shock)
+		return exp( 2.9 + age*0.04 - 0.0004*(age^2) + shock)
+		# return exp( shock)
 		# return shock
 	end
 end
@@ -157,7 +158,7 @@ end
 function income(shock::Array{Float64},it::Int,p::Param)
 	x = similar(shock)
 	for i=1:length(x)
-		x[i] = income(it,shock[i],p)
+		x[i] = income(shock[i],it,p)
 	end
 	return x
 end
@@ -244,4 +245,27 @@ function linearapprox(x::Vector{Float64},y::Vector{Float64},xi::Vector{Float64})
 		z[i] = linearapprox(x,y,xi[i])
 	end
 	return z
+end
+
+
+"""
+	blim(y,bound,R,n)
+
+Compute the natural borrowing limit for each of n periods.
+
+# Details
+
+* for each of t=1:n periods, compute the lowest asset value such that, for the worst possible future stream of incomes, all debt can be repaid with certainty.
+* the natural borrowing limit cannot be lower than the exogenous limit `bound`
+"""
+function blim(y,bound,R,n)
+    b=similar(y)
+    for i=1:n
+    	b[i] = 0.0
+    	for j=(i+1):n
+    		b[i] -= y[j] / R^(j-i)
+    	end
+    	b[i] = b[i] < bound ? bound : b[i]
+    end
+    return b
 end

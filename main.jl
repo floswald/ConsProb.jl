@@ -5,7 +5,7 @@ include("src/ConsProb.jl")
 include("test/runtests.jl")
 
 
-p  = ConsProb.Param(1.0,-2.0)
+p  = ConsProb.Param(2.0,-25.0)
 m  = ConsProb.iidModel(p)
 ConsProb.EGM!(m,p)
 for i in 1:p.nT-1

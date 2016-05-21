@@ -76,7 +76,7 @@ type Param
 
 		na     = 200
 		ny     = 50
-		nT     = 6
+		nT     = 25
 		a_high = 50.0
 		a_low  = alow
 		a_lowT  = 0.0
@@ -89,7 +89,7 @@ type Param
 		# mu = 10 	# mean income: 30K
 		# sigma = 1  # sd income
 		mu = 0 	# mean income: 30K
-		sigma = 0.25  # sd income
+		sigma = 0.20  # sd income
 
 		# AR1 income uncertainty
 		# params from Ayiagari
@@ -117,9 +117,9 @@ type Param
 
 		na = 200
 		ny = 10
-		nT = 8
+		nT = 25
 		a_high = 300.0
-		a_lowT  = 1e-6
+		a_lowT  = -25.0
 		a_low  = 1e-6
 		nD = 2
 
@@ -167,11 +167,12 @@ type iidModel <: Model
 
 	# computation grids
 	avec::Array{Vector{Float64}}	# different avec in each period possible
-	yvec::Vector{Float64}   # income support
+	yvec::Vector{Float64}   # income shock support
 	ywgt::Vector{Float64}   # income weights
+	incmat::Matrix{Float64}   # income levels
 
 	# intermediate objects (na,ny)
-	mnext::Array{Float64,2}	# matrix (na,ny)
+	mnext::Array{Float64,3}	# matrix (na,ny,nt)
 	cnext::Array{Float64,2}
 	ev::Array{Float64,2}
 	# intermediate objects (ny,1)
@@ -196,22 +197,32 @@ type iidModel <: Model
 	"""
 	function iidModel(p::Param)
 
-		avec          = [scaleGrid(p.a_low,p.a_high,p.na,2) for i=1:p.nT]
 		nodes,weights = gausshermite(p.ny)  # from FastGaussQuadrature
 
 		# for y ~ N(mu,sigma), integrate y with 
 		# http://en.wikipedia.org/wiki/Gauss-Hermite_quadrature
 		yvec = sqrt(2.0) * p.sigma .* nodes .+ p.mu
 		ywgt = weights .* pi^(-0.5)
+		incmat = hcat([income(yvec,it,p) for it=1:p.nT]...)
+
+		# precompute next period's cash on hand
+		# first: what is lower bound on end-of-period assets in each period?
+		if p.a_low < 0
+			lowest_incomes = [income(yvec[1],it,p) for it=1:p.nT]
+			bounds = blim(lowest_incomes,p.a_low,p.R,p.nT)
+		else 
+			bounds = [p.a_low for i=1:p.nT]
+		end
+		avec = [scaleGrid(bounds[i],p.a_high,p.na,2) for i=1:p.nT]
 
 		# precompute next period's cash on hand.
 		# mnext = Float64[avec[ia]*p.R + yvec[iy] for ia in 1:p.na, iy in 1:p.ny]
 
 		# if you want a deterministic age profile in income, use income().
 		# you would have to change the params of income() though.
-		# mnext = Float64[avec[ia]*p.R + income(yvec[iy],it) for ia in 1:p.na, iy in 1:p.ny, it in 1:p.nT]
+		mnext = Float64[avec[it][ia]*p.R + income(yvec[iy],it,p) for ia in 1:p.na, iy in 1:p.ny, it in 1:p.nT]
 
-		mnext = zeros(p.na,p.ny)
+		# mnext = zeros(p.na,p.ny)
 		cnext = zeros(p.na,p.ny)
 		ev = zeros(p.na,p.ny)
 
@@ -226,7 +237,7 @@ type iidModel <: Model
 		toc = 0.0
 
 
-		return new(avec,yvec,ywgt,mnext,cnext,ev,m2,c2,C,S,M,V,it,toc)
+		return new(avec,yvec,ywgt,incmat,mnext,cnext,ev,m2,c2,C,S,M,V,it,toc)
 	end
 end
 

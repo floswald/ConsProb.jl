@@ -210,8 +210,9 @@ function fillCnext!(m::iidModel,p::Param,it::Int)
 	for ia in 1:p.na
 		for iy in 1:p.ny
 			idx = ia+p.na*(iy-1)
-			m.mnext[idx] = cashnext(m.avec[it][ia],income(m.yvec[iy],it+1,p),p)
-			m.cnext[idx] = linearapprox(tmpx,tmpy,m.mnext[idx])
+			midx = ia+p.na*(iy-1 + p.ny * (it+1-1))   # next period!
+			# m.mnext[idx] = cashnext(m.avec[it][ia],income(m.yvec[iy],it+1,p),p)
+			m.cnext[idx] = linearapprox(tmpx,tmpy,m.mnext[midx])
 		end
 	end
 end
@@ -247,14 +248,14 @@ function EGM!(m::iidModel,p::Param)
 	set!(m.V[it],u(v(m.C[it]),p) + p.beta * 0.0)   # future value in last period: 0.0
 
 	# bounds
-	set_bound!(m.M[it],0.0)	# here you decide whether one can die in debt or not
+	set_bound!(m.M[it],m.avec[p.nT][1])	# here you decide whether one can die in debt or not
 	# set_bound!(m.M[it],m.avec[it][1]*p.R)	# here you decide whether one can die in debt or not
 	set_bound!(m.C[it],p.cfloor)
 	set_bound!(m.V[it],0.0)
 
 	# preceding periods
 	for it in (p.nT-1):-1:1
-		fillAvec!(m,p,it)
+		# fillAvec!(m,p,it)
 		# get all future consumptions and compute RHS of euler equation
 		fillCnext!(m,p,it)
 		Eu = RHS(m,p,it)
