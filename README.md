@@ -1,5 +1,19 @@
 
 
+
+# CAUTION: this repo is out of date. 
+
+in fact, the most recent code does not work. there is a version that works burried somewhere in the tree, but that will only work with an old julia version. This repo is **ARCHIVED**. 
+in short - **hands off this code**.
+
+# INSTEAD: go checkout the new version of this!!!!!
+
+new version is here: https://github.com/floswald/DCEGM.jl
+
+---------
+
+archived stuff from here on:
+
 # Consumption / Savings / Discrete Choice Problems
 
 1. Installation
